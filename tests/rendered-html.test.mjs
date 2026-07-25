@@ -18,5 +18,5 @@ test("server-renders the NEXUS-5G control room", async () => {
   assert.match(html, /Metro autonomy/);
   assert.match(html, /INJECT BASE-STATION FAILURE/);
   assert.match(html, /Service telemetry/);
-  assert.doesNotMatch(html, /codex-preview/);
+  assert.doesNotMatch(html, /starter-preview/);
 });
