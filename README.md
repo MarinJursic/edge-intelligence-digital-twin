@@ -4,34 +4,23 @@ An interactive 5G edge-computing digital twin that makes task-offload decisions,
 
 NEXUS—5G models a small autonomous-mobility district: vehicles, a drone, a phone, a camera, a robot, and sensors move or operate inside a 3D city, connect to gNodeB sectors, and generate AI workloads. A transparent multi-objective scheduler places each workload on the device, a nearby MEC node, a regional edge, or the cloud. Injecting a base-station failure immediately changes the radio state, serving cells, queue pressure, task path, and scheduler decision; restoring it emits a separate recovery transition.
 
-## Showcase: read the recovery story at a glance
+## Operator recovery story
 
-![NEXUS-5G healthy network and failure-recovery comparison](docs/nexus-5g-showcase.png)
-
-The numbered plate keeps the workload and topology fixed so the state change is
-easy to verify:
+The repository no longer uses diagram-rendered PNG/GIF/MP4 files as product
+walkthroughs. The executable Three.js application is the source of truth:
 
 1. **Healthy:** all three gNodeBs are available and `AV-07` offloads the road
    hazard workload to `MEC-CENTRAL-01`.
-2. **Outage:** `gNB-CENTRAL` is visibly marked unavailable, five UEs hand over,
-   and the execution path moves to `MEC-WEST-02`.
-3. **Evidence:** the execution node, latency, queue depth, SLA, topology state,
-   and event stream change together rather than presenting unrelated metrics.
+2. **Outage:** `gNB-CENTRAL` is marked unavailable, five UEs hand over, and the
+   execution path moves to `MEC-WEST-02`.
+3. **Evidence:** execution node, latency, queue depth, SLA, topology state, and
+   event stream change together.
+4. **Recovery:** restoring the station creates a distinct recovery transition and
+   returns admission to the central path.
 
-### Animated operator replay
-
-<p align="center">
-  <img src="docs/nexus-5g-failure-recovery.gif" alt="Animated deterministic gNodeB failure and edge reroute" width="100%" />
-</p>
-
-**Video evidence:** [watch the 16-second MP4 failure/recovery replay](docs/nexus-5g-failure-recovery.mp4).
-
-> The comparison PNG, GIF, and MP4 are reproducible explanatory renders generated from
-> sequential backend `TelemetryFrame` objects—not hand-entered metrics or a
-> claim of packet-level/RF fidelity. The sequence covers healthy operation,
-> `gNB-CENTRAL` failure, MEC rerouting, queue stabilization, and restoration.
-> Recreate all four media files with `.venv/bin/python scripts/render_demo.py` (MP4 export
-> additionally requires `ffmpeg` on `PATH`).
+This sequence is deterministic telemetry from the simulator, not packet-level RF
+evidence. It should be reviewed in the running app, where the camera, task pulses,
+topology, and metrics update together.
 
 ## Why this project exists
 
