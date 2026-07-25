@@ -209,6 +209,49 @@ def frame_image(frame: TelemetryFrame) -> Image.Image:
     return image
 
 
+def comparison_image(healthy: Image.Image, outage: Image.Image) -> Image.Image:
+    """Build a GitHub-readable before/after plate from real scenario frames."""
+    canvas = Image.new("RGB", (W, 1934), BG)
+    draw = ImageDraw.Draw(canvas)
+    draw.text(
+        (28, 24),
+        "FAILURE RECOVERY — BEFORE / AFTER",
+        font=font(24, True),
+        fill="#eaf4ff",
+    )
+    draw.text(
+        (28, 62),
+        "The same deterministic workload, topology, and telemetry contract in two network states.",
+        font=font(14),
+        fill="#91a6bb",
+    )
+    rounded(draw, (24, 106, W - 24, 166), 10, fill="#07111d", outline=LINE)
+    draw.ellipse((48, 128, 62, 142), fill=LIME)
+    draw.text(
+        (78, 121),
+        "1  HEALTHY — AV-07 offloads to MEC-CENTRAL; every gNodeB is available.",
+        font=font(15, True),
+        fill="#dceafd",
+    )
+    canvas.paste(healthy, (0, 184))
+    rounded(draw, (24, 1008, W - 24, 1068), 10, fill="#281b10", outline="#8e6430")
+    draw.ellipse((48, 1030, 62, 1044), fill=RED)
+    draw.text(
+        (78, 1023),
+        "2  OUTAGE — gNB-CENTRAL fails; five UEs hand over and AV-07 reroutes to MEC-WEST.",
+        font=font(15, True),
+        fill="#ffd391",
+    )
+    canvas.paste(outage, (0, 1086))
+    draw.text(
+        (28, 1900),
+        "3  VERIFY — compare execution node, latency, queue depth, SLA, topology state, and event stream.",
+        font=font(14, True),
+        fill=CYAN,
+    )
+    return canvas
+
+
 def main() -> None:
     simulator = TwinSimulator()
     telemetry = (
@@ -218,6 +261,9 @@ def main() -> None:
     )
     frames = [frame_image(frame) for frame in telemetry]
     frames[0].save(OUT / "nexus-5g-overview.png", optimize=True)
+    comparison_image(frames[0], frames[5]).save(
+        OUT / "nexus-5g-showcase.png", optimize=True
+    )
     frames[0].save(
         OUT / "nexus-5g-failure-recovery.gif",
         save_all=True,
@@ -250,6 +296,7 @@ def main() -> None:
             check=True,
         )
     print(f"Rendered {OUT / 'nexus-5g-overview.png'}")
+    print(f"Rendered {OUT / 'nexus-5g-showcase.png'}")
     print(f"Rendered {OUT / 'nexus-5g-failure-recovery.gif'}")
     print(f"Rendered {OUT / 'nexus-5g-failure-recovery.mp4'}")
 

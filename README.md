@@ -4,7 +4,21 @@ An interactive 5G edge-computing digital twin that makes task-offload decisions,
 
 NEXUS—5G models a small autonomous-mobility district: vehicles, a drone, a phone, a camera, a robot, and sensors move or operate inside a 3D city, connect to gNodeB sectors, and generate AI workloads. A transparent multi-objective scheduler places each workload on the device, a nearby MEC node, a regional edge, or the cloud. Injecting a base-station failure immediately changes the radio state, serving cells, queue pressure, task path, and scheduler decision; restoring it emits a separate recovery transition.
 
-![NEXUS-5G deterministic scenario overview](docs/nexus-5g-overview.png)
+## Showcase: read the recovery story at a glance
+
+![NEXUS-5G healthy network and failure-recovery comparison](docs/nexus-5g-showcase.png)
+
+The numbered plate keeps the workload and topology fixed so the state change is
+easy to verify:
+
+1. **Healthy:** all three gNodeBs are available and `AV-07` offloads the road
+   hazard workload to `MEC-CENTRAL-01`.
+2. **Outage:** `gNB-CENTRAL` is visibly marked unavailable, five UEs hand over,
+   and the execution path moves to `MEC-WEST-02`.
+3. **Evidence:** the execution node, latency, queue depth, SLA, topology state,
+   and event stream change together rather than presenting unrelated metrics.
+
+### Animated operator replay
 
 <p align="center">
   <img src="docs/nexus-5g-failure-recovery.gif" alt="Animated deterministic gNodeB failure and edge reroute" width="100%" />
@@ -12,11 +26,11 @@ NEXUS—5G models a small autonomous-mobility district: vehicles, a drone, a pho
 
 **Video evidence:** [watch the 16-second MP4 failure/recovery replay](docs/nexus-5g-failure-recovery.mp4).
 
-> The PNG, GIF, and MP4 are reproducible explanatory renders generated from
+> The comparison PNG, GIF, and MP4 are reproducible explanatory renders generated from
 > sequential backend `TelemetryFrame` objects—not hand-entered metrics or a
 > claim of packet-level/RF fidelity. The sequence covers healthy operation,
 > `gNB-CENTRAL` failure, MEC rerouting, queue stabilization, and restoration.
-> Recreate all three with `.venv/bin/python scripts/render_demo.py` (MP4 export
+> Recreate all four media files with `.venv/bin/python scripts/render_demo.py` (MP4 export
 > additionally requires `ffmpeg` on `PATH`).
 
 ## Why this project exists
@@ -31,6 +45,8 @@ The MVP demonstrates:
 - latency, throughput, packet loss, jitter, queue, energy, accuracy, privacy, SLA, and slice telemetry;
 - all five inspectable objective dimensions: latency, energy, monetary cost, privacy risk, and accuracy loss;
 - a one-click `gNB-CENTRAL` failure, UE handover, deterministic stabilization, adaptive rerouting, and explicit restoration;
+- persistent dark and light interface themes, including separate Three.js scene
+  lighting, fog, ground, road, building, grid, window, and label palettes;
 - a deterministic Python simulator and multi-objective scheduler;
 - one versioned telemetry contract for simulated and future physical sources;
 - WebSocket and request/response APIs with generated OpenAPI documentation.
@@ -66,13 +82,17 @@ NEXT_PUBLIC_EDGE_API_URL=http://your-api.example npm run dev
 ## Demo walkthrough
 
 1. Drag across the city to rotate the 3D camera.
-2. Watch the white task pulse travel from `AV-07` to the selected execution target.
-3. Switch among adaptive, latency-first, energy-first, privacy-first, and forced device/MEC/cloud baselines. Energy-first selects the regional edge in the default trace.
-4. Change any of the five objective weights. The policy becomes **CUSTOM**, and the API normalizes the non-zero vector.
-5. Change workload privacy to **Sensitive** or **Restricted**. Hard constraints override an unsafe weighted preference; an incompatible forced tier returns a visible policy-blocked state.
-6. Select **Inject base-station failure**.
-7. `gNB-CENTRAL` drops, five UEs hand over, its beams turn red, queue/loss/jitter/latency spike, and the task path moves to a healthy target.
-8. Select **Restore gNB-CENTRAL** to emit a restoration event and resume normal admission.
+2. Use the persistent **LIGHT / DARK** control to change both the dashboard and
+   the 3D city's materials, atmosphere, lighting, and labels.
+3. Watch the white task pulse travel from `AV-07` to the selected execution target.
+4. Switch among adaptive, latency-first, energy-first, privacy-first, and forced device/MEC/cloud baselines. Energy-first selects the regional edge in the default trace.
+5. Change any of the five objective weights. The policy becomes **CUSTOM**, and the API normalizes the non-zero vector.
+6. Change workload privacy to **Sensitive** or **Restricted**. Hard constraints override an unsafe weighted preference; an incompatible forced tier returns a visible policy-blocked state.
+7. Select **Inject base-station failure**.
+8. `gNB-CENTRAL` drops, the inventory changes from `3 / 3` to `2 / 3`, five UEs
+   hand over, its beams turn red, the recovery progress bar starts, and
+   queue/loss/jitter/latency spike while the task path moves to a healthy target.
+9. Select **Restore gNB-CENTRAL** to emit a restoration event and resume normal admission.
 
 The scenario uses seed `42`. Positions, workload arrivals, node health, scores, timestamps, and telemetry are deterministic for a given action sequence, including a failure injected after arbitrary uptime. Browser fallback uses the same target, privacy, outage, and recovery rules, so the demo remains meaningful without the Python service.
 
@@ -221,7 +241,7 @@ cd api && ../.venv/bin/pytest
 npm run test:all
 ```
 
-The automated suite checks byte-for-byte reset determinism (including generated timestamps), every device and execution tier, complete telemetry dimensions, late-injected failure behavior, UE reassignment, stabilization and restoration, weighted and forced policies, strict privacy, task-size sensitivity, requesting-device identity, candidate explanations, malformed and unknown HTTP requests, zero/invalid weights, 404s, isolated WebSocket streams and close codes, hardware snapshot validation, custom-weight browser-fallback scheduling, operator controls, and server-rendered product content.
+The automated suite checks byte-for-byte reset determinism (including generated timestamps), every device and execution tier, complete telemetry dimensions, late-injected failure behavior, UE reassignment, stabilization and restoration, weighted and forced policies, strict privacy, task-size sensitivity, requesting-device identity, candidate explanations, malformed and unknown HTTP requests, zero/invalid weights, 404s, isolated WebSocket streams and close codes, hardware snapshot validation, custom-weight browser-fallback scheduling, operator controls, persistent theme selection, light-theme propagation into the 3D scene, outage inventory, accessible recovery progress, and server-rendered product content.
 
 ## Research framing
 
@@ -251,11 +271,29 @@ Run every policy on identical seeded traces and report confidence intervals. Sep
 
 ## Standards and primary sources
 
+- ETSI's current MEC framework separates MEC applications, platform services,
+  host-level management, and system-level orchestration; NEXUS—5G keeps its
+  laptop-scale MEC nodes and scheduler visibly distinct for the same reason:
+  [ETSI GS MEC 003 V3.2.1](https://www.etsi.org/deliver/etsi_gs/mec/001_099/003/03.02.01_60/gs_mec003v030201p.pdf).
+- 3GPP's 5G system overview identifies edge computing and slicing as distinct
+  architectural capabilities. The three dashboard slices are therefore
+  workload/SLA views, not separate radio towers or a claim of complete PLMNs:
+  [3GPP 5G System Overview](https://www.3gpp.org/technologies/5g-system-overview).
 - 3GPP identifies Release 18 as the first release of **5G-Advanced**: [3GPP Highlights, Release 18](https://www.3gpp.org/ftp/Information/Highlights/2022_Issue05/3GPP_Highlights_Issue_5_WEB.pdf).
 - 5G-LENA is the ns-3 NR module and documents its PHY/MAC models, examples, validation, and limitations: [5G-LENA NR module manual](https://cttc-lena.gitlab.io/nr/manual/nr-module.html).
 - Open5GS implements a 5G Core/EPC and documents SA/NSA network functions and deployment: [Open5GS documentation](https://open5gs.org/open5gs/docs/).
 - srsRAN provides a portable open-source 5G CU/DU stack; its metrics can be emitted as JSON over WebSocket: [srsRAN Project documentation](https://docs.srsran.com/projects/project/en/latest/) and [output documentation](https://docs.srsran.com/projects/project/en/latest/user_manuals/source/outputs.html).
 - SUMO is a microscopic traffic simulator; TraCI provides TCP client/server control and online access to simulation objects: [Eclipse SUMO](https://eclipse.dev/sumo/) and [TraCI documentation](https://eclipse.dev/sumo/docs/TraCI/index.html).
+- OpenTelemetry recommends counters such as `system.network.packet.dropped`,
+  `system.network.packet.count`, and `system.network.errors` for measured host
+  interface telemetry. The included `TelemetryFrame` remains a domain contract;
+  a production OpenTelemetry exporter should map measured counters explicitly
+  instead of renaming the demo's analytical percentages:
+  [OpenTelemetry system metric semantic conventions](https://opentelemetry.io/docs/specs/semconv/system/system-metrics/).
+- Three.js renders in Linear-sRGB and converts display output to sRGB. Both
+  themes use `SRGBColorSpace` output and ACES filmic tone mapping rather than
+  treating light mode as a CSS inversion:
+  [Three.js color-management guide](https://threejs.org/manual/en/color-management.html).
 
 These tools are integration targets, not bundled dependencies. Keeping them behind adapters preserves the laptop-friendly demo and prevents simulator-specific types from leaking into the scheduler or UI.
 

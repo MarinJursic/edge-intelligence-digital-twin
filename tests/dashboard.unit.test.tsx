@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("../app/ui/TwinScene", () => ({
-  TwinScene: () => <div data-testid="scene">3D scene</div>,
+  TwinScene: ({ theme }: { theme: string }) => <div data-testid="scene" data-theme={theme}>3D scene</div>,
 }));
 
 import { EdgeTwinDashboard } from "../app/ui/EdgeTwinDashboard";
@@ -73,5 +73,24 @@ describe("operator interactions", () => {
       expect.stringContaining("/v1/scenarios/metro-autonomy-01/reset"),
       { method: "POST" },
     );
+  });
+
+  it("persists light mode and passes the palette into the 3D scene", async () => {
+    const user = userEvent.setup();
+    render(<EdgeTwinDashboard />);
+    await user.click(screen.getByRole("button", { name: /switch to light theme/i }));
+    expect(window.localStorage.getItem("nexus-5g-theme")).toBe("light");
+    expect(document.documentElement.dataset.theme).toBe("light");
+    expect(screen.getByTestId("scene").dataset.theme).toBe("light");
+    expect(screen.getByRole("button", { name: /switch to dark theme/i })).toBeTruthy();
+  });
+
+  it("reports radio inventory and recovery progress during an outage", async () => {
+    const user = userEvent.setup();
+    render(<EdgeTwinDashboard />);
+    await user.click(screen.getByRole("button", { name: /inject base-station failure/i }));
+    expect(screen.getByText("2 / 3")).toBeTruthy();
+    const recovery = screen.getByRole("progressbar", { name: /reroute stabilization/i });
+    expect(recovery.getAttribute("aria-valuenow")).toBe("0");
   });
 });
