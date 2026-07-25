@@ -3,8 +3,90 @@
 import { useEffect, useRef } from "react";
 import * as THREE from "three";
 import type { ExecutionTarget } from "./telemetry";
+import type { Theme } from "./theme";
 
-export function TwinScene({ failed, tick, target }: { failed: boolean; tick: number; target: ExecutionTarget }) {
+const SCENE_PALETTES = {
+  dark: {
+    background: "#050b13",
+    fog: "#050b13",
+    sky: "#70bde0",
+    earth: "#060b12",
+    sun: "#b8deff",
+    ground: "#07111b",
+    gridPrimary: "#163249",
+    gridSecondary: "#0c2132",
+    road: "#0d1824",
+    stripe: "#5b6c73",
+    building: "#0d1c2a",
+    window: "#2b6b82",
+    roof: "#183a4c",
+  },
+  light: {
+    background: "#dce8ee",
+    fog: "#dce8ee",
+    sky: "#d9f5ff",
+    earth: "#718392",
+    sun: "#fff7df",
+    ground: "#c7d4da",
+    gridPrimary: "#7d9baa",
+    gridSecondary: "#aebfc7",
+    road: "#657783",
+    stripe: "#f5e8bc",
+    building: "#94aab5",
+    window: "#e1f7ff",
+    roof: "#6f8a98",
+  },
+} as const;
+
+function createLabel(
+  text: string,
+  theme: Theme,
+  accent: string,
+  textures: THREE.Texture[],
+) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 384;
+  canvas.height = 80;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+  context.clearRect(0, 0, canvas.width, canvas.height);
+  context.fillStyle = theme === "light" ? "rgba(249,252,253,.94)" : "rgba(3,9,16,.88)";
+  context.strokeStyle = accent;
+  context.lineWidth = 3;
+  context.beginPath();
+  context.roundRect(2, 2, canvas.width - 4, canvas.height - 4, 14);
+  context.fill();
+  context.stroke();
+  context.fillStyle = theme === "light" ? "#102b3a" : "#e7f4ff";
+  context.font = "600 25px ui-monospace, SFMono-Regular, Menlo, monospace";
+  context.textAlign = "center";
+  context.textBaseline = "middle";
+  context.fillText(text, canvas.width / 2, canvas.height / 2 + 1);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  textures.push(texture);
+  const material = new THREE.SpriteMaterial({
+    map: texture,
+    transparent: true,
+    depthTest: false,
+  });
+  const label = new THREE.Sprite(material);
+  label.scale.set(5.8, 1.2, 1);
+  label.renderOrder = 20;
+  return label;
+}
+
+export function TwinScene({
+  failed,
+  tick,
+  target,
+  theme,
+}: {
+  failed: boolean;
+  tick: number;
+  target: ExecutionTarget;
+  theme: Theme;
+}) {
   const host = useRef<HTMLDivElement>(null);
   const state = useRef({ failed, tick, target });
   useEffect(() => {
@@ -14,9 +96,10 @@ export function TwinScene({ failed, tick, target }: { failed: boolean; tick: num
   useEffect(() => {
     const mount = host.current;
     if (!mount) return;
+    const palette = SCENE_PALETTES[theme];
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color("#050b13");
-    scene.fog = new THREE.FogExp2("#050b13", .022);
+    scene.background = new THREE.Color(palette.background);
+    scene.fog = new THREE.FogExp2(palette.fog, .022);
     const camera = new THREE.PerspectiveCamera(45, 1, .1, 180);
     camera.position.set(26, 25, 31);
     camera.lookAt(0, 1, 0);
@@ -32,36 +115,40 @@ export function TwinScene({ failed, tick, target }: { failed: boolean; tick: num
       };
     }
     renderer.setPixelRatio(Math.min(devicePixelRatio, 1.75));
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = theme === "light" ? 1.08 : 1.18;
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     mount.appendChild(renderer.domElement);
+    const labelTextures: THREE.Texture[] = [];
 
-    scene.add(new THREE.HemisphereLight("#70bde0", "#060b12", 1.6));
-    const key = new THREE.DirectionalLight("#b8deff", 2.2);
+    scene.add(new THREE.HemisphereLight(palette.sky, palette.earth, theme === "light" ? 2.2 : 1.6));
+    const key = new THREE.DirectionalLight(palette.sun, theme === "light" ? 3.1 : 2.2);
     key.position.set(12, 24, 8);
     key.castShadow = true;
     scene.add(key);
 
     const ground = new THREE.Mesh(
       new THREE.PlaneGeometry(66, 56),
-      new THREE.MeshStandardMaterial({ color: "#07111b", roughness: .84, metalness: .18 }),
+      new THREE.MeshStandardMaterial({ color: palette.ground, roughness: .84, metalness: .12 }),
     );
     ground.rotation.x = -Math.PI / 2;
     ground.receiveShadow = true;
     scene.add(ground);
 
-    const grid = new THREE.GridHelper(66, 44, "#163249", "#0c2132");
+    const grid = new THREE.GridHelper(66, 44, palette.gridPrimary, palette.gridSecondary);
     grid.position.y = .015;
     scene.add(grid);
 
-    const roadMat = new THREE.MeshStandardMaterial({ color: "#0d1824", roughness: .7 });
+    const roadMat = new THREE.MeshStandardMaterial({ color: palette.road, roughness: .7 });
     const roadA = new THREE.Mesh(new THREE.BoxGeometry(66, .06, 6.2), roadMat);
     roadA.position.y = .04;
     scene.add(roadA);
     const roadB = roadA.clone();
     roadB.rotation.y = Math.PI / 2;
     scene.add(roadB);
-    const stripeMat = new THREE.MeshBasicMaterial({ color: "#5b6c73" });
+    const stripeMat = new THREE.MeshBasicMaterial({ color: palette.stripe });
     for (let i = -30; i <= 30; i += 4) {
       const s = new THREE.Mesh(new THREE.BoxGeometry(1.8, .02, .07), stripeMat);
       s.position.set(i, .09, 0);
@@ -69,8 +156,8 @@ export function TwinScene({ failed, tick, target }: { failed: boolean; tick: num
       const t = s.clone(); t.rotation.y = Math.PI / 2; t.position.set(0, .09, i); scene.add(t);
     }
 
-    const buildingMat = new THREE.MeshStandardMaterial({ color: "#0d1c2a", roughness: .42, metalness: .36 });
-    const windowMat = new THREE.MeshBasicMaterial({ color: "#2b6b82" });
+    const buildingMat = new THREE.MeshStandardMaterial({ color: palette.building, roughness: .48, metalness: .22 });
+    const windowMat = new THREE.MeshBasicMaterial({ color: palette.window });
     const footprints = [
       [-15,-13,6,6,8],[-7,-14,4,6,11],[8,-14,7,5,6],[17,-14,5,7,12],
       [-15,-5,6,4,5],[14,-4,7,4,8],[-16,8,5,7,13],[-8,11,5,5,7],[9,9,6,7,10],[18,8,5,5,6],
@@ -84,13 +171,18 @@ export function TwinScene({ failed, tick, target }: { failed: boolean; tick: num
         win.position.set(x+wx,level,z+d/2+.011); scene.add(win);
       }
       if (index % 3 === 0) {
-        const roof = new THREE.Mesh(new THREE.BoxGeometry(w*.45,.25,d*.35), new THREE.MeshBasicMaterial({color:"#183a4c"}));
+        const roof = new THREE.Mesh(new THREE.BoxGeometry(w*.45,.25,d*.35), new THREE.MeshBasicMaterial({color:palette.roof}));
         roof.position.set(x,h+.14,z); scene.add(roof);
       }
     });
 
     const stations: { id:string; x:number; z:number; mast:THREE.Group; glow:THREE.Mesh; beams:THREE.Line[] }[] = [];
-    [[-10,-1],[12,4],[2,-14]].forEach(([x,z], idx) => {
+    const stationDefinitions = [
+      { id: "gNB-WEST", x: -10, z: -1 },
+      { id: "gNB-CENTRAL", x: 12, z: 4 },
+      { id: "gNB-NORTH", x: 2, z: -14 },
+    ];
+    stationDefinitions.forEach(({ id, x, z }) => {
       const mast = new THREE.Group();
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(.08,.12,6,8), new THREE.MeshStandardMaterial({ color:"#a5c8d8",metalness:.8 }));
       pole.position.y=3; mast.add(pole);
@@ -105,17 +197,42 @@ export function TwinScene({ failed, tick, target }: { failed: boolean; tick: num
         const line=new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts),new THREE.LineBasicMaterial({color:"#56e8ff",transparent:true,opacity:.42}));
         scene.add(line);beams.push(line);
       }
-      stations.push({id:`gNB-${idx}`,x,z,mast,glow,beams});
+      const label = createLabel(id, theme, "#2fcff4", labelTextures);
+      if (label) {
+        label.position.set(x, 6.7, z);
+        scene.add(label);
+      }
+      stations.push({id,x,z,mast,glow,beams});
     });
 
     const edgeNode = new THREE.Mesh(new THREE.BoxGeometry(2.1,1.35,2.1),new THREE.MeshStandardMaterial({color:"#0c5969",emissive:"#0a3944",emissiveIntensity:.8,metalness:.55}));
     edgeNode.position.set(12,.72,4);scene.add(edgeNode);
+    const centralEdgeLabel = createLabel("MEC-CENTRAL", theme, "#5794ff", labelTextures);
+    if (centralEdgeLabel) {
+      centralEdgeLabel.position.set(12, 2.05, 4);
+      scene.add(centralEdgeLabel);
+    }
     const westEdgeNode = edgeNode.clone();
     westEdgeNode.position.set(-10,.72,-1);scene.add(westEdgeNode);
+    const westEdgeLabel = createLabel("MEC-WEST", theme, "#5794ff", labelTextures);
+    if (westEdgeLabel) {
+      westEdgeLabel.position.set(-10, 2.05, -1);
+      scene.add(westEdgeLabel);
+    }
     const regionalNode = new THREE.Mesh(new THREE.CylinderGeometry(1.25,1.25,1.2,6),new THREE.MeshStandardMaterial({color:"#3d55a4",emissive:"#222d69",emissiveIntensity:.7,metalness:.5}));
     regionalNode.position.set(-20,.65,18);scene.add(regionalNode);
+    const regionalLabel = createLabel("REGIONAL EDGE", theme, "#5794ff", labelTextures);
+    if (regionalLabel) {
+      regionalLabel.position.set(-20, 2, 18);
+      scene.add(regionalLabel);
+    }
     const cloud = new THREE.Mesh(new THREE.OctahedronGeometry(1.25,1),new THREE.MeshStandardMaterial({color:"#3153a3",emissive:"#1d3472",emissiveIntensity:.8,wireframe:true}));
     cloud.position.set(19,9,-18);scene.add(cloud);
+    const cloudLabel = createLabel("EU CLOUD", theme, "#5794ff", labelTextures);
+    if (cloudLabel) {
+      cloudLabel.position.set(19, 11, -18);
+      scene.add(cloudLabel);
+    }
 
     const carMat = new THREE.MeshStandardMaterial({color:"#ffbd59",emissive:"#613b08",emissiveIntensity:.5});
     const cars:THREE.Mesh[]=[];
@@ -203,11 +320,12 @@ export function TwinScene({ failed, tick, target }: { failed: boolean; tick: num
         if(Array.isArray(mesh.material)) mesh.material.forEach((material)=>material.dispose());
         else mesh.material?.dispose();
       });
+      labelTextures.forEach((texture) => texture.dispose());
       renderer.dispose();
       renderer.forceContextLoss();
       if(renderer.domElement.parentNode===mount) mount.removeChild(renderer.domElement);
     };
-  },[]);
+  },[theme]);
 
   return <div ref={host} className="scene" role="application" tabIndex={0} aria-label="Interactive 3D city digital twin. Drag, swipe, or use left and right arrow keys to rotate the view." />;
 }

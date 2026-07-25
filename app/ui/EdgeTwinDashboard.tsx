@@ -8,6 +8,7 @@ import {
   PrivacyClass,
   SchedulerMode,
 } from "./telemetry";
+import { setStoredTheme, useTheme } from "./theme";
 import { TwinScene } from "./TwinScene";
 
 const fmt = (n: number, digits = 1) => n.toFixed(digits);
@@ -37,11 +38,14 @@ export function EdgeTwinDashboard() {
   const [justRestored, setJustRestored] = useState(false);
   const [remoteFrame, setRemoteFrame] = useState<ReturnType<typeof deterministicFrame> | null>(null);
   const [backendStatus, setBackendStatus] = useState<"connected" | "fallback" | "constraint">("fallback");
+  const theme = useTheme();
   const localFrame = useMemo(
     () => deterministicFrame(tick, failed, mode, privacyClass, justRestored, weights),
     [tick, failed, mode, privacyClass, justRestored, weights],
   );
   const frame = remoteFrame ?? localFrame;
+  const recoveryPct = failed ? Math.round(Math.min(1, Math.max(0, (tick - 2) / 7)) * 100) : 100;
+  const healthLabel = failed ? (recoveryPct >= 100 ? "REROUTED" : "RECOVERING") : "NOMINAL";
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -167,7 +171,17 @@ export function EdgeTwinDashboard() {
           <div className="live"><i className="live-dot" />{backendStatus === "connected" ? "API CONNECTED" : backendStatus === "constraint" ? "POLICY BLOCKED" : "LOCAL TWIN"}</div>
           <span>SEED 42</span>
           <span className="clock">2026-07-25&nbsp;&nbsp;14:32:{String(tick % 60).padStart(2,"0")}.042Z</span>
-          <button className="top-action" onClick={resetScenario}>↻ RESET</button>
+          <button
+            className="theme-toggle"
+            type="button"
+            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
+            aria-pressed={theme === "light"}
+            onClick={() => setStoredTheme(theme === "dark" ? "light" : "dark")}
+          >
+            <span aria-hidden="true">{theme === "dark" ? "☀" : "☾"}</span>
+            {theme === "dark" ? "LIGHT" : "DARK"}
+          </button>
+          <button className="top-action" type="button" onClick={resetScenario}>↻ RESET</button>
         </div>
       </header>
 
@@ -181,7 +195,13 @@ export function EdgeTwinDashboard() {
           <div className="kicker" style={{marginTop:22}}>Scheduler policy</div>
           <div className="mode-grid">
             {MODES.map((item) => (
-              <button key={item} className={`mode-btn ${mode === item ? "active" : ""}`} onClick={() => selectMode(item)}>
+              <button
+                key={item}
+                type="button"
+                className={`mode-btn ${mode === item ? "active" : ""}`}
+                aria-pressed={mode === item}
+                onClick={() => selectMode(item)}
+              >
                 {item.toUpperCase()}
               </button>
             ))}
@@ -209,20 +229,25 @@ export function EdgeTwinDashboard() {
             <option value="sensitive">Sensitive</option>
             <option value="restricted">Restricted</option>
           </select>
-          <button className={`fault-btn ${failed ? "active" : ""}`} onClick={toggleFailure}>
+          <button
+            className={`fault-btn ${failed ? "active" : ""}`}
+            type="button"
+            aria-pressed={failed}
+            onClick={toggleFailure}
+          >
             {failed ? "✓ RESTORE gNB-CENTRAL" : "⚠ INJECT BASE-STATION FAILURE"}
           </button>
 
           <div className="kicker" style={{marginTop:26}}>Network inventory</div>
           <div className="legend">
             {[
-              ["#56e8ff","gNodeB sectors","3 / 3"],
+              ["#56e8ff","gNodeBs","3 / 3"],
               ["#5794ff","MEC nodes","2 / 2"],
               ["#ffbd59","Autonomous fleet","8"],
               ["#a9ed66","Aerial devices","1"],
               ["#d8efff","Phone · camera · robot","3"],
               ["#8a99ad","IoT sensors","4"],
-            ].map(([c,n,v])=><div className="legend-row" key={n}><span className="legend-name"><i className="legend-swatch" style={{background:c}} />{n}</span><b>{failed&&n==="gNodeB sectors"?"2 / 3":v}</b></div>)}
+            ].map(([c,n,v])=><div className="legend-row" key={n}><span className="legend-name"><i className="legend-swatch" style={{background:c}} />{n}</span><b>{failed&&n==="gNodeBs"?"2 / 3":v}</b></div>)}
           </div>
           <div className="scenario-sub" style={{padding:"0 6px"}}>
             Drag the 3D viewport to rotate. The white pulse follows the current task migration path.
@@ -230,12 +255,33 @@ export function EdgeTwinDashboard() {
         </aside>
 
         <section className="stage" aria-label="Digital twin viewport">
-          <TwinScene failed={failed} tick={tick} target={frame.decision.target} />
+          <TwinScene failed={failed} tick={tick} target={frame.decision.target} theme={theme} />
           <div className="scene-head">
             <div><div className="scene-title">CITY CORE / OPERATIONS VIEW</div><div className="scene-sub">41.387° N · 2.170° E &nbsp; / &nbsp; SCALE 1:2400</div></div>
             <div className="view-pill">PERSPECTIVE&nbsp;&nbsp;·&nbsp;&nbsp;RADIO + COMPUTE</div>
           </div>
-          {failed && <div className="alert" role="status"><strong>gNB-CENTRAL SIGNAL LOST</strong><span>Controller rerouting URLLC traffic via MEC-WEST-02 · estimated stabilization 4.2 s</span></div>}
+          <div className="scene-summary" aria-label="Scenario summary" aria-live="polite">
+            <span><i className={failed ? "status-warn" : ""} />NETWORK <b>{healthLabel}</b></span>
+            <span>EXECUTION <b>{frame.decision.nodeId}</b></span>
+            <span>SLA <b>{frame.metrics.slaPct}%</b></span>
+            <span>ACTIVE UEs <b>16</b></span>
+          </div>
+          {failed && (
+            <div className="alert" role="status">
+              <strong>gNB-CENTRAL SIGNAL LOST</strong>
+              <span>Five UEs reassigned to gNB-WEST · analytical recovery window 8.1 s</span>
+              <div
+                className="recovery-meter"
+                role="progressbar"
+                aria-label="Reroute stabilization"
+                aria-valuemin={0}
+                aria-valuemax={100}
+                aria-valuenow={recoveryPct}
+              >
+                <i style={{ width: `${recoveryPct}%` }} />
+              </div>
+            </div>
+          )}
           {backendStatus === "constraint" && <div className="alert constraint-alert" role="alert"><strong>PLACEMENT BLOCKED</strong><span>The selected tier violates the privacy or feasibility constraint. The safe local preview remains on-device.</span></div>}
           <div className="timeline">
             <div className="timeline-row"><strong>{failed ? "FAILURE RECOVERY SEQUENCE" : "DETERMINISTIC SCENARIO REPLAY"}</strong><span>T+{fmt((tick%20)*.9)} s &nbsp; · &nbsp; 1×</span></div>
@@ -245,7 +291,12 @@ export function EdgeTwinDashboard() {
 
         <aside className="inspector" aria-label="Live telemetry">
           <section className="section">
-            <div className="section-head"><h2>Active decision</h2><span>{frame.decision.score} CONF.</span></div>
+            <div className="section-head">
+              <h2>Active decision</h2>
+              <span title="Normalized weighted objective; lower is better">
+                {frame.decision.score} OBJECTIVE ↓
+              </span>
+            </div>
             <div className="decision">
               <div className="decision-route">
                 <div className={`node ${frame.decision.target==="device"?"on":""}`}><i>⌁</i>DEVICE</div><div className="arrow" />

@@ -1,6 +1,7 @@
 {
   "name": "nexus-5g-edge-digital-twin",
   "version": "0.1.0",
+  "description": "Real-time 5G edge-cloud digital twin for workload placement, network-failure simulation, adaptive recovery, and telemetry replay.",
   "private": true,
   "engines": {
     "node": ">=22.13.0"
