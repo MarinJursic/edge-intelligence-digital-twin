@@ -47,3 +47,5 @@ next-env.d.ts
 *.pyc
 **/.pytest_cache/
 *.egg-info/
+/docs/nexus-5g-failure-recovery.gif
+/docs/nexus-5g-failure-recovery.mp4
