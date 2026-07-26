@@ -135,7 +135,7 @@ export function GeoOperationsMap({
     <div className="geo-map" data-theme={theme} data-testid="operations-map">
       <svg
         viewBox="0 0 1000 720"
-        role="application"
+        role="region"
         tabIndex={0}
         aria-label="Interactive operations map of Barcelona Eixample. Drag to rotate, use arrow keys to change bearing and pitch, and plus or minus to zoom."
         onKeyDown={keyDown}

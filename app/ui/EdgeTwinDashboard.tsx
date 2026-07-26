@@ -60,7 +60,9 @@ export function EdgeTwinDashboard() {
   const [toolsOpen, setToolsOpen] = useState(false);
   const [schedulerOpen, setSchedulerOpen] = useState(false);
   const [provenanceOpen, setProvenanceOpen] = useState(false);
+  const [reduceMotion, setReduceMotion] = useState(false);
   const schedulerTriggerRef = useRef<HTMLButtonElement>(null);
+  const schedulerOpenerRef = useRef<HTMLButtonElement | null>(null);
   const schedulerDialogRef = useRef<HTMLElement>(null);
   const schedulerCloseRef = useRef<HTMLButtonElement>(null);
   const theme = useTheme();
@@ -76,18 +78,30 @@ export function EdgeTwinDashboard() {
   );
 
   useEffect(() => {
-    if (!playing) return;
+    if (!playing || reduceMotion) return;
     const id = window.setInterval(
       () => setTick((value) => failed ? Math.min(99, value + 1) : (value + 1) % 100),
       900 / speed,
     );
     return () => window.clearInterval(id);
-  }, [failed, playing, speed]);
+  }, [failed, playing, reduceMotion, speed]);
+
+  useEffect(() => {
+    if (typeof window.matchMedia !== "function") return;
+    const media = window.matchMedia("(prefers-reduced-motion: reduce)");
+    const apply = () => {
+      setReduceMotion(media.matches);
+      if (media.matches) setPlaying(false);
+    };
+    apply();
+    media.addEventListener?.("change", apply);
+    return () => media.removeEventListener?.("change", apply);
+  }, []);
 
   useEffect(() => {
     if (!schedulerOpen) return;
     const dialog = schedulerDialogRef.current;
-    const returnFocus = schedulerTriggerRef.current;
+    const returnFocus = schedulerOpenerRef.current ?? schedulerTriggerRef.current;
     const focusable = () => [
       ...(dialog?.querySelectorAll<HTMLElement>(
         'button:not([disabled]), input:not([disabled]), select:not([disabled]), summary, [href], [tabindex]:not([tabindex="-1"])',
@@ -118,6 +132,7 @@ export function EdgeTwinDashboard() {
       window.clearTimeout(focusTimer);
       document.removeEventListener("keydown", keyDown);
       returnFocus?.focus();
+      schedulerOpenerRef.current = null;
     };
   }, [schedulerOpen]);
 
@@ -161,6 +176,11 @@ export function EdgeTwinDashboard() {
     setSelectedId("active-ue");
   }
 
+  function openScheduler(opener: HTMLButtonElement) {
+    schedulerOpenerRef.current = opener;
+    setSchedulerOpen(true);
+  }
+
   function exportFrame() {
     const payload = JSON.stringify({
       classification: {
@@ -176,7 +196,7 @@ export function EdgeTwinDashboard() {
     const url = URL.createObjectURL(new Blob([payload], { type: "application/json" }));
     const anchor = document.createElement("a");
     anchor.href = url;
-    anchor.download = `nexus-${scenario.id}-frame-${tick}.json`;
+    anchor.download = `edgetwin-${scenario.id}-frame-${tick}.json`;
     anchor.click();
     URL.revokeObjectURL(url);
   }
@@ -184,10 +204,10 @@ export function EdgeTwinDashboard() {
   return (
     <main className="ops-shell">
       <header className="ops-command">
-        <a className="ops-brand" href="#operations-map" aria-label="Nexus network operations">
-          <span aria-hidden="true">N</span>
-          <strong>NEXUS</strong>
-          <small>EDGE OPERATIONS TWIN</small>
+        <a className="ops-brand" href="#operations-map" aria-label="EdgeTwin network operations">
+          <span aria-hidden="true">E</span>
+          <strong>EdgeTwin</strong>
+          <small>SEE WHERE AI WORK RUNS</small>
         </a>
         <label className="scenario-select">
           <span>Scenario</span>
@@ -196,10 +216,7 @@ export function EdgeTwinDashboard() {
           </select>
         </label>
         <div className="source-status" aria-label="Data classifications">
-          <span><i className="reference" /> REFERENCE PHOTO</span>
-          <span><i className="observed" /> OBSERVED MAP</span>
-          <span><i className="authored" /> AUTHORED FIXTURE</span>
-          <span><i className="computed" /> COMPUTED</span>
+          <span className="plain-language-status">Camera frame → 5G cell → compute destination</span>
         </div>
         <div className="ops-actions">
           <button type="button" onClick={() => setProvenanceOpen((value) => !value)} aria-expanded={provenanceOpen}>Sources</button>
@@ -222,7 +239,7 @@ export function EdgeTwinDashboard() {
       <section className="map-stage" id="operations-map">
         <div className="stage-toolbar">
           <div className="view-switch" role="group" aria-label="Primary evidence view">
-            <button type="button" aria-pressed={viewMode === "context"} onClick={() => setViewMode("context")}>Street context</button>
+            <button type="button" aria-pressed={viewMode === "context"} onClick={() => { setViewMode("context"); setToolsOpen(false); }}>Street context</button>
             <button type="button" aria-pressed={viewMode === "map"} onClick={() => setViewMode("map")}>Geographic map</button>
           </div>
           <button
@@ -244,12 +261,14 @@ export function EdgeTwinDashboard() {
             target={frame.decision.target}
             latencyMs={frame.metrics.latencyMs}
             failed={failed}
+            onShowMap={() => setViewMode("map")}
+            onInspectDecision={openScheduler}
           />
         ) : (
           <>
             <div className="map-title">
-              <div><span>OBSERVED GEOGRAPHY</span><h1>{scenario.title}</h1><p>{scenario.place} · {scenario.description}</p></div>
-              <div><span>SCENARIO TRAFFIC</span><strong>{scenario.observed.trafficState}</strong><small>DETERMINISTIC FIXTURE</small></div>
+              <div><span>FRAME JOURNEY</span><h1>How this camera frame travels</h1><p>{scenario.ueId} → {failed ? "gNB-WEST" : "gNB-CENTRAL"} → {frame.decision.nodeId}</p></div>
+              <div><span>CURRENT RESULT</span><strong>{frame.metrics.latencyMs.toFixed(1)} ms</strong><small>{frame.metrics.latencyMs < 25 ? "INSIDE 25 MS TARGET" : "TARGET AT RISK"}</small></div>
             </div>
             <GeoOperationsMap
               key={scenario.id}
@@ -309,10 +328,10 @@ export function EdgeTwinDashboard() {
           </div>
         )}
         <div className="kpi-strip" aria-label="Current service metrics">
-          <Kpi label="Latency" value={`${frame.metrics.latencyMs.toFixed(1)} ms`} status={frame.metrics.latencyMs < 25 ? "fixture-derived · within SLA" : "fixture-derived · at risk"} warn={frame.metrics.latencyMs >= 25} />
-          <Kpi label="RSRP" value={failed ? "−89 dBm" : "−72 dBm"} status={failed ? "authored fixture · handover" : "authored fixture"} warn={failed} />
-          <Kpi label="Packet loss" value={`${frame.metrics.packetLossPct.toFixed(2)}%`} status={frame.metrics.packetLossPct < 1 ? "fixture-derived · healthy" : "fixture-derived · degraded"} warn={frame.metrics.packetLossPct >= 1} />
-          <Kpi label="SLA" value={`${frame.metrics.slaPct}%`} status={failed ? "fixture-derived · recovering" : "fixture-derived · nominal"} warn={failed} />
+          <Kpi label="Round trip" value={`${frame.metrics.latencyMs.toFixed(1)} ms`} status={frame.metrics.latencyMs < 25 ? "inside 25 ms target" : "target at risk"} warn={frame.metrics.latencyMs >= 25} />
+          <Kpi label="Signal" value={failed ? "−89 dBm" : "−72 dBm"} status={failed ? "backup cell" : "serving cell"} warn={failed} />
+          <Kpi label="Lost packets" value={`${frame.metrics.packetLossPct.toFixed(2)}%`} status={frame.metrics.packetLossPct < 1 ? "healthy link" : "degraded link"} warn={frame.metrics.packetLossPct >= 1} />
+          <Kpi label="Service target" value={`${frame.metrics.slaPct}%`} status={failed ? "recovering" : "nominal"} warn={failed} />
         </div>
       </section>
 
@@ -354,9 +373,9 @@ export function EdgeTwinDashboard() {
         ) : (
           <>
             <section className="decision-summary">
-              <span>{viewMode === "context" ? "DECISION EVIDENCE" : "ACTIVE PLACEMENT"}</span>
-              <strong>{viewMode === "context" ? "Why this route" : frame.decision.nodeId}</strong>
-              <p>{frame.decision.rationale}</p>
+              <span>COMPUTE DECISION · LOCAL REPLAY</span>
+              <strong>Run at {frame.decision.nodeId}</strong>
+              <p>{frame.metrics.latencyMs.toFixed(1)} ms round trip. {frame.decision.rationale}</p>
               {viewMode === "map" && (
                 <div className="tier-route" aria-label={`Execution target ${frame.decision.target}`}>
                   {["DEVICE", "MEC", "REGION", "CLOUD"].map((tier) => {
@@ -365,7 +384,7 @@ export function EdgeTwinDashboard() {
                   })}
                 </div>
               )}
-              <button ref={schedulerTriggerRef} type="button" onClick={() => setSchedulerOpen(true)}>Inspect scheduler</button>
+              <button ref={schedulerTriggerRef} type="button" onClick={(event) => openScheduler(event.currentTarget)}>Compare every destination</button>
             </section>
             <label className="privacy-select">Workload privacy
               <select aria-label="Workload privacy" value={privacyClass} onChange={(event) => setPrivacyClass(event.target.value as PrivacyClass)}>
@@ -405,7 +424,7 @@ export function EdgeTwinDashboard() {
       {schedulerOpen && (
         <div className="sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSchedulerOpen(false); }}>
           <section ref={schedulerDialogRef} className="scheduler-sheet" role="dialog" aria-modal="true" aria-labelledby="scheduler-title">
-            <header><div><span>INTERPRETABLE BASELINE</span><h2 id="scheduler-title">Placement scheduler</h2></div><button ref={schedulerCloseRef} type="button" aria-label="Close scheduler" onClick={() => setSchedulerOpen(false)}>×</button></header>
+            <header><div><span>WHY THIS DESTINATION WON</span><h2 id="scheduler-title">Compare placement options</h2></div><button ref={schedulerCloseRef} type="button" aria-label="Close scheduler" onClick={() => setSchedulerOpen(false)}>×</button></header>
             <div className="scheduler-controls">
               <label className="policy-select">Placement policy
                 <select
@@ -436,17 +455,20 @@ export function EdgeTwinDashboard() {
               </div>
               <p className="weights-note">Each slider preserves the raw value you set. The scheduler normalizes the active total only while scoring candidates; all-zero weights use the latency tie-break.</p>
             </details>
-            <div className="candidate-table">
-              <div><span>Candidate</span><span>Latency</span><span>Cost/task</span><span>Feasibility</span></div>
-              {frame.candidates.map((candidate) => (
-                <div className={frame.decision.target === candidate.target ? "winner" : ""} key={candidate.target}>
-                  <strong>{candidate.label}</strong>
-                  <span>{candidate.latencyMs.toFixed(1)} ms</span>
-                  <span>{candidate.monetaryCostUsd === 0 ? "$0" : `$${candidate.monetaryCostUsd.toFixed(4)}`}</span>
-                  <span>{candidate.feasible ? "FEASIBLE" : `${candidate.violations.join(" + ")} BLOCK`}</span>
-                </div>
-              ))}
-            </div>
+            <table className="candidate-table">
+              <caption>Placement candidates and their feasibility</caption>
+              <thead><tr><th scope="col">Candidate</th><th scope="col">Latency</th><th scope="col">Cost/task</th><th scope="col">Feasibility</th></tr></thead>
+              <tbody>
+                {frame.candidates.map((candidate) => (
+                  <tr className={frame.decision.target === candidate.target ? "winner" : ""} key={candidate.target}>
+                    <th scope="row">{candidate.label}</th>
+                    <td>{candidate.latencyMs.toFixed(1)} ms</td>
+                    <td>{candidate.monetaryCostUsd === 0 ? "$0" : `$${candidate.monetaryCostUsd.toFixed(4)}`}</td>
+                    <td>{candidate.feasible ? "FEASIBLE" : `${candidate.violations.join(" + ")} BLOCK`}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
             <p className="sheet-note">Candidate attributes are authored scenario fixtures. Feasibility and scores are computed locally from those fixtures; they are not measured operator performance and do not claim global optimality.</p>
           </section>
         </div>

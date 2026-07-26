@@ -6,6 +6,7 @@ import { EdgeTwinDashboard } from "../app/ui/EdgeTwinDashboard";
 
 describe("geographic operator interactions", () => {
   beforeEach(() => {
+    vi.unstubAllGlobals();
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
     window.localStorage.clear();
     document.documentElement.dataset.theme = "dark";
@@ -14,13 +15,15 @@ describe("geographic operator interactions", () => {
   it("presents three real-place scenarios with explicit data classifications", async () => {
     const user = userEvent.setup();
     const { container } = render(<EdgeTwinDashboard />);
-    expect(screen.getByText("OBSERVED MAP")).toBeTruthy();
-    expect(screen.getByText("REFERENCE PHOTO")).toBeTruthy();
-    expect(screen.getByText("AUTHORED FIXTURE")).toBeTruthy();
+    expect(screen.getByText("Camera frame → 5G cell → compute destination")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Sources" }));
+    expect(screen.getByText("REFERENCE")).toBeTruthy();
+    expect(screen.getByText("OBSERVED")).toBeTruthy();
+    expect(screen.getByText("AUTHORED")).toBeTruthy();
     expect(screen.getByText("COMPUTED")).toBeTruthy();
-    expect(screen.getByText(/Camera 41.383820, 2.160500/)).toBeTruthy();
-    expect(screen.getAllByText(/not the mapped scene/).length).toBeGreaterThanOrEqual(2);
-    expect(screen.getByText("ACCESS · SIMULATED FIXTURE")).toBeTruthy();
+    expect(screen.getByText(/41.383820, 2.160500/)).toBeTruthy();
+    expect(screen.getByText(/not asserted to be the mapped scene/)).toBeTruthy();
+    expect(screen.getByText(/deterministic scenario fixtures, not measurements/)).toBeTruthy();
 
     const scenario = screen.getByLabelText("Scenario");
     expect((scenario as HTMLSelectElement).options).toHaveLength(3);
@@ -35,15 +38,15 @@ describe("geographic operator interactions", () => {
     const placaTraffic = [...container.querySelectorAll('[data-testid="scenario-traffic"] path')]
       .map((path) => path.getAttribute("d"));
     expect(placaTraffic).not.toHaveLength(0);
-    expect(screen.getByText(/CAM-PLACA-03 →/)).toBeTruthy();
+    expect(screen.getAllByText(/CAM-PLACA-03 →/).length).toBeGreaterThan(0);
   });
 
   it("toggles every geographic and network layer", async () => {
     const user = userEvent.setup();
     render(<EdgeTwinDashboard />);
-    expect(screen.getByText("Nearby city context · not the mapped scene · not live · not a simulator input")).toBeTruthy();
+    expect(screen.getByText(/Follow one camera frame from capture/i)).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Layers & assets" }));
-    expect(screen.getByRole("application", { name: /Interactive operations map/ })).toBeTruthy();
+    expect(screen.getByRole("region", { name: /Interactive operations map/ })).toBeTruthy();
     for (const name of ["Buildings", "Traffic state", "Cells \\+ sectors", "MEC sites", "Task path"]) {
       const checkbox = screen.getByRole("checkbox", { name: new RegExp(name, "i") });
       expect((checkbox as HTMLInputElement).checked).toBe(true);
@@ -56,14 +59,15 @@ describe("geographic operator interactions", () => {
     const user = userEvent.setup();
     const { container } = render(<EdgeTwinDashboard />);
     await user.click(screen.getByRole("button", { name: "Geographic map" }));
-    await user.click(screen.getByRole("button", { name: "Inspect scheduler" }));
-    expect(screen.getByRole("dialog", { name: "Placement scheduler" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Compare every destination" }));
+    expect(screen.getByRole("dialog", { name: "Compare placement options" })).toBeTruthy();
     await user.selectOptions(screen.getByRole("combobox", { name: "Placement policy" }), "cloud");
     expect(container.querySelector(".tier-route .active")?.textContent).toBe("CLOUD");
-    const candidateRows = [...container.querySelectorAll(".candidate-table > div")];
-    expect(candidateRows[1].textContent).toContain("22.2 ms");
-    expect(candidateRows[1].textContent).toContain("PLACEMENT BLOCK");
-    expect(candidateRows[4].textContent).toContain("FEASIBLE");
+    const candidateRows = [...container.querySelectorAll(".candidate-table tbody tr")];
+    expect(candidateRows[0].textContent).toContain("22.2 ms");
+    expect(candidateRows[0].textContent).toContain("PLACEMENT BLOCK");
+    expect(candidateRows[3].textContent).toContain("FEASIBLE");
+    expect(screen.getByRole("table", { name: "Placement candidates and their feasibility" })).toBeTruthy();
     await user.click(screen.getByRole("button", { name: "Close scheduler" }));
 
     await user.selectOptions(screen.getByRole("combobox", { name: "Workload privacy" }), "restricted");
@@ -74,19 +78,42 @@ describe("geographic operator interactions", () => {
   it("moves focus into the scheduler, closes on Escape, and restores the trigger", async () => {
     const user = userEvent.setup();
     render(<EdgeTwinDashboard />);
-    const trigger = screen.getByRole("button", { name: "Inspect scheduler" });
+    const trigger = screen.getByRole("button", { name: "Compare every destination" });
     await user.click(trigger);
     const close = screen.getByRole("button", { name: "Close scheduler" });
     await waitFor(() => expect(document.activeElement).toBe(close));
     await user.keyboard("{Escape}");
-    expect(screen.queryByRole("dialog", { name: "Placement scheduler" })).toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Compare placement options" })).toBeNull();
     expect(document.activeElement).toBe(trigger);
+  });
+
+  it("restores focus to the photographic journey button that opened the comparison", async () => {
+    const user = userEvent.setup();
+    render(<EdgeTwinDashboard />);
+    const opener = screen.getByRole("button", { name: "Why this destination?" });
+    await user.click(opener);
+    const close = screen.getByRole("button", { name: "Close scheduler" });
+    await waitFor(() => expect(document.activeElement).toBe(close));
+    await user.click(close);
+    await waitFor(() => expect(document.activeElement).toBe(opener));
+  });
+
+  it("pauses the deterministic replay when reduced motion is requested", async () => {
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({
+      matches: true,
+      addEventListener: vi.fn(),
+      removeEventListener: vi.fn(),
+    }));
+    render(<EdgeTwinDashboard />);
+    await waitFor(() =>
+      expect(screen.getByRole("button", { name: "Play replay" })).toBeTruthy(),
+    );
   });
 
   it("preserves raw objective values and normalizes only while scoring", async () => {
     const user = userEvent.setup();
     render(<EdgeTwinDashboard />);
-    await user.click(screen.getByRole("button", { name: "Inspect scheduler" }));
+    await user.click(screen.getByRole("button", { name: "Compare every destination" }));
     expect(screen.getByText("42%")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Energy objective weight"), { target: { value: "80" } });
     expect(screen.getByText("CUSTOM · raw total 160%")).toBeTruthy();
@@ -119,9 +146,8 @@ describe("geographic operator interactions", () => {
     const user = userEvent.setup();
     render(<EdgeTwinDashboard />);
     await user.click(screen.getByRole("button", { name: "Layers & assets" }));
-    await user.click(screen.getByRole("button", { name: "Street context" }));
     await user.click(screen.getByRole("button", { name: /AV-07ACTIVE UE/i }));
-    expect(screen.getByRole("application", { name: /Interactive operations map/ })).toBeTruthy();
+    expect(screen.getByRole("region", { name: /Interactive operations map/ })).toBeTruthy();
 
     const osmLink = screen.getByRole("link", { name: "© OpenStreetMap contributors" });
     expect(osmLink.getAttribute("target")).toBe("_blank");
@@ -133,9 +159,19 @@ describe("geographic operator interactions", () => {
     expect(photoSource.getAttribute("rel")).toBe("noreferrer");
   });
 
+  it("closes map-only tools when returning to photographic context", async () => {
+    const user = userEvent.setup();
+    render(<EdgeTwinDashboard />);
+    await user.click(screen.getByRole("button", { name: "Layers & assets" }));
+    expect(screen.getByRole("complementary", { name: "Map layers and assets" })).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Street context" }));
+    expect(screen.queryByRole("complementary", { name: "Map layers and assets" })).toBeNull();
+    expect(screen.getByText("REAL BARCELONA CONTEXT")).toBeTruthy();
+  });
+
   it("does not duplicate the active placement card over the context decision path", () => {
     const { container } = render(<EdgeTwinDashboard />);
-    expect(container.querySelector(".decision-summary > strong")?.textContent).toBe("Why this route");
+    expect(container.querySelector(".decision-summary > strong")?.textContent).toContain("Run at MEC-CENTRAL-01");
     expect(container.querySelector(".selection-drawer .tier-route")).toBeNull();
   });
 
@@ -145,8 +181,8 @@ describe("geographic operator interactions", () => {
     await user.click(screen.getByRole("button", { name: "Sources" }));
     expect(screen.getByText(/Traffic, routes, topology, target profiles, nominal RSRP/)).toBeTruthy();
     expect(screen.getByText(/Replay KPIs and candidate rankings are calculated locally/)).toBeTruthy();
-    expect(screen.getByText("authored fixture")).toBeTruthy();
-    expect(screen.getAllByText(/fixture-derived/).length).toBeGreaterThan(0);
+    expect(screen.getByText("AUTHORED UE FIXTURE")).toBeTruthy();
+    expect(screen.getByText("COMPUTE DECISION · LOCAL REPLAY")).toBeTruthy();
   });
 
   it("simulates and restores a selected cell outage", async () => {
@@ -179,12 +215,12 @@ describe("geographic operator interactions", () => {
     const user = userEvent.setup();
     render(<EdgeTwinDashboard />);
     await user.click(screen.getByRole("button", { name: "Geographic map" }));
-    expect(screen.getByRole("application", { name: /Interactive operations map/ })).toBeTruthy();
+    expect(screen.getByRole("region", { name: /Interactive operations map/ })).toBeTruthy();
     for (const name of ["Zoom in", "Zoom out", "Rotate map left", "Rotate map right", "Reset map bearing and pitch"]) {
       expect(screen.getByRole("button", { name })).toBeTruthy();
     }
     await user.click(screen.getByRole("button", { name: "Switch to light theme" }));
-    expect(window.localStorage.getItem("nexus-5g-theme")).toBe("light");
+    expect(window.localStorage.getItem("edgetwin-theme")).toBe("light");
     expect(document.documentElement.dataset.theme).toBe("light");
     expect(screen.getByTestId("operations-map").dataset.theme).toBe("light");
   });

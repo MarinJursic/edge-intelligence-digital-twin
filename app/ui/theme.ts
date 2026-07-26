@@ -2,8 +2,8 @@ import { useEffect, useSyncExternalStore } from "react";
 
 export type Theme = "dark" | "light";
 
-const STORAGE_KEY = "nexus-5g-theme";
-const EVENT_NAME = "nexus-theme-change";
+const STORAGE_KEY = "edgetwin-theme";
+const EVENT_NAME = "edgetwin-theme-change";
 
 function preferredTheme(): Theme {
   if (typeof window === "undefined") return "dark";

@@ -18,12 +18,16 @@ export function StreetEvidenceView({
   target,
   latencyMs,
   failed,
+  onShowMap,
+  onInspectDecision,
 }: {
   scenario: OperationsScenario;
   nodeId: string;
   target: ExecutionTarget;
   latencyMs: number;
   failed: boolean;
+  onShowMap: () => void;
+  onInspectDecision: (opener: HTMLButtonElement) => void;
 }) {
   const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
@@ -41,38 +45,43 @@ export function StreetEvidenceView({
       <div className="photo-shade" aria-hidden="true" />
 
       <section className="scene-heading">
-        <span className="classification reference">NEARBY REFERENCE PHOTOGRAPH</span>
+        <span className="classification reference">REAL BARCELONA CONTEXT</span>
         <p>{scenario.place}</p>
         <h1>{scenario.title}</h1>
         <span className="scene-note">
-          Nearby city context · not the mapped scene · not live · not a simulator input
+          Follow one camera frame from capture to its selected compute destination.
         </span>
       </section>
 
       <section className="decision-path" aria-label="Current workload placement">
         <div>
-          <span>WORKLOAD · FIXTURE</span>
-          <strong>{scenario.ueId}</strong>
-          <small>{scenario.workload}</small>
+          <span><b>1</b> CAPTURE</span>
+          <strong>A camera sends a frame</strong>
+          <small>{scenario.ueId} · {scenario.workload}</small>
         </div>
         <i aria-hidden="true">→</i>
         <div>
-          <span>ACCESS · SIMULATED FIXTURE</span>
-          <strong>{failed ? "gNB-WEST" : "gNB-CENTRAL"}</strong>
-          <small>{failed ? "handover active" : "serving cell"}</small>
+          <span><b>2</b> CONNECT</span>
+          <strong>{failed ? "Rerouted to the west cell" : "Nearest 5G cell"}</strong>
+          <small>{failed ? "gNB-WEST · handover active" : "gNB-CENTRAL · serving cell"}</small>
         </div>
         <i aria-hidden="true">→</i>
         <div className="placement-choice">
-          <span>PLACEMENT · COMPUTED</span>
-          <strong>{TIER_LABELS[target]}</strong>
-          <small>{nodeId} · {latencyMs.toFixed(1)} ms</small>
+          <span><b>3</b> PROCESS</span>
+          <strong>Run at {TIER_LABELS[target]}</strong>
+          <small>{latencyMs.toFixed(1)} ms round trip · {nodeId}</small>
         </div>
       </section>
 
+      <div className="journey-actions" aria-label="Explore this placement decision">
+        <button type="button" onClick={onShowMap}>See the network route</button>
+        <button type="button" onClick={(event) => onInspectDecision(event.currentTarget)}>Why this destination?</button>
+      </div>
+
       <figcaption>
         <span>
-          Camera {scenario.contextPhoto.cameraCoordinates} · {scenario.contextPhoto.distanceFromScenario} ·
-          not the mapped scene
+          Reference photo only · camera {scenario.contextPhoto.cameraCoordinates} ·
+          {scenario.contextPhoto.distanceFromScenario}
         </span>
         <a href={scenario.contextPhoto.sourceUrl} target="_blank" rel="noreferrer">
           {scenario.contextPhoto.author} · {scenario.contextPhoto.capturedAt} · {scenario.contextPhoto.license}

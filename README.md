@@ -1,10 +1,10 @@
-# NEXUS—5G Edge Intelligence Digital Twin
+# EdgeTwin
 
-[![Live preview](https://img.shields.io/badge/live-preview-2ea44f?logo=github)](https://marinjursic.github.io/edge-intelligence-digital-twin/)
-[![Preview status](https://github.com/MarinJursic/edge-intelligence-digital-twin/actions/workflows/pages.yml/badge.svg)](https://github.com/MarinJursic/edge-intelligence-digital-twin/actions/workflows/pages.yml)
+[![Live preview](https://img.shields.io/badge/live-preview-2ea44f?logo=github)](https://marinjursic.github.io/EdgeTwin/)
+[![Preview status](https://github.com/MarinJursic/EdgeTwin/actions/workflows/pages.yml/badge.svg)](https://github.com/MarinJursic/EdgeTwin/actions/workflows/pages.yml)
 
-An evidence-first operations workbench for inspecting edge-AI placement, radio
-incidents, privacy constraints, and deterministic recovery in Barcelona.
+An explainable 5G edge-placement workbench that follows a Barcelona camera frame
+from capture, through its serving cell, to the compute destination that runs it.
 
 Each scenario opens on a real, licensed street photograph so the place remains
 recognizable. A separate checked-in OpenStreetMap extract provides the geographic
@@ -15,15 +15,15 @@ decisions independently.
 
 ## Continuous app walkthrough
 
-[![Continuous NEXUS Edge Operations Twin walkthrough showing Barcelona reference photography, the geographic map, scenario changes, and both themes](docs/walkthrough/app-walkthrough.gif)](docs/walkthrough/app-walkthrough.mp4)
+[![Continuous EdgeTwin walkthrough following a camera frame through its 5G cell to a compute destination](docs/walkthrough/app-walkthrough.gif)](docs/walkthrough/app-walkthrough.mp4)
 
 [Watch or download the full-resolution MP4](docs/walkthrough/app-walkthrough.mp4)
 · [Open the walkthrough poster](docs/walkthrough/app-walkthrough-poster.jpg)
 
 The walkthrough is a single continuous pass through the real application. It starts
-on licensed Barcelona street photography, changes to the observed geographic map,
-opens the keyboard-accessible layer and asset controls, moves to the Plaça workload,
-returns to its nearby photographic context, and verifies the dark theme.
+with the three-step capture → connect → process story, opens the attributed route
+map, compares every compute destination, simulates a serving-cell outage, follows
+the reroute and recovery, and verifies both themes.
 
 The displayed values are deterministic simulator telemetry, not packet-level RF
 measurements. The continuous capture demonstrates the real interaction and rendering
@@ -31,7 +31,7 @@ path without claiming measured 5G performance.
 
 ## Why this project exists
 
-Edge-AI scheduling is a systems problem, not just a model-selection problem. Sending a workload farther away may improve inference accuracy while increasing radio delay, privacy exposure, and cost. Keeping it on-device may protect data while draining battery and missing a latency target. NEXUS—5G makes those trade-offs observable and gives every decision an inspectable score.
+Edge-AI scheduling is a systems problem, not just a model-selection problem. Sending a workload farther away may improve inference accuracy while increasing radio delay, privacy exposure, and cost. Keeping it on-device may protect data while draining battery and missing a latency target. EdgeTwin makes those trade-offs observable and gives every decision an inspectable score.
 
 The implemented workbench includes:
 
@@ -81,7 +81,8 @@ its OpenAPI docs are available at [http://localhost:8000/docs](http://localhost:
 
 ## Demo walkthrough
 
-1. Choose one of the three scenarios from the command bar.
+1. Follow the numbered capture → connect → process story, then open **See the
+   network route** to view the same frame on attributed map geometry.
 2. Read the reference-photo caption, including the source coordinate or explicit
    absence of one and its distance from the scenario center. The photograph is
    nearby city context, not the mapped scene, a live feed, or a simulator input.
@@ -90,7 +91,7 @@ its OpenAPI docs are available at [http://localhost:8000/docs](http://localhost:
 4. Open **Layers & assets**—this switches to the geographic map—then toggle
    buildings, traffic, radio, compute, and task layers or select a UE, gNodeB, or
    MEC node.
-5. Open **Inspect scheduler** and choose a policy from the single placement-policy
+5. Open **Compare every destination** and choose a policy from the single placement-policy
    control. Expand **Tune objective weights** only when a custom policy is needed.
 6. Change privacy to **Restricted** and confirm that remote candidates are visibly
    blocked while device placement remains feasible.
@@ -325,7 +326,7 @@ Run every policy on identical seeded traces and report confidence intervals. Sep
 ## Standards and primary sources
 
 - ETSI's current MEC framework separates MEC applications, platform services,
-  host-level management, and system-level orchestration; NEXUS—5G keeps its
+  host-level management, and system-level orchestration; EdgeTwin keeps its
   laptop-scale MEC nodes and scheduler visibly distinct for the same reason:
   [ETSI GS MEC 003 V4.1.1](https://www.etsi.org/deliver/etsi_gs/mec/001_099/003/04.01.01_60/gs_mec003v040101p.pdf).
 - 3GPP's edge-computing overview separates the application, edge-enabler, hosting,
@@ -334,7 +335,7 @@ Run every policy on identical seeded traces and report confidence intervals. Sep
   network transport as related but different evidence:
   [3GPP Edge Computing](https://www.3gpp.org/technologies/edge-computing).
 - O-RAN WG3 defines the Near-RT RIC as a fine-grained data-collection and action
-  loop over E2. NEXUS does not claim to implement a RIC or E2 interface; those remain
+  loop over E2. EdgeTwin does not claim to implement a RIC or E2 interface; those remain
   adapter targets:
   [O-RAN technical groups](https://www.o-ran.org/technical-groups).
 - 3GPP's 5G system overview identifies edge computing and slicing as distinct

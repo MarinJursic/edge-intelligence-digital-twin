@@ -13,7 +13,7 @@ describe("dashboard theme preference", () => {
     const { result } = renderHook(() => useTheme());
     act(() => setStoredTheme("light"));
     expect(result.current).toBe("light");
-    expect(window.localStorage.getItem("nexus-5g-theme")).toBe("light");
+    expect(window.localStorage.getItem("edgetwin-theme")).toBe("light");
     expect(document.documentElement.dataset.theme).toBe("light");
   });
 });

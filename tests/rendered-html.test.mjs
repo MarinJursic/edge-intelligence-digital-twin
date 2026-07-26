@@ -11,22 +11,21 @@ async function render() {
   }, { waitUntil() {}, passThroughOnException() {} });
 }
 
-test("server-renders the Barcelona evidence-first operations workbench", async () => {
+test("server-renders the explainable Barcelona edge-placement workbench", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /NEXUS/);
-  assert.match(html, /Barcelona Edge Operations Workbench/);
+  assert.match(html, /EdgeTwin/);
+  assert.match(html, /Camera frame → 5G cell → compute destination/);
   assert.match(html, /Road-hazard segmentation/);
-  assert.match(html, /REFERENCE PHOTO/);
-  assert.match(html, /OBSERVED MAP/);
-  assert.match(html, /AUTHORED FIXTURE/);
-  assert.match(html, /COMPUTED/);
+  assert.match(html, /REAL BARCELONA CONTEXT/);
+  assert.match(html, /A camera sends a frame/);
+  assert.match(html, /Nearest 5G cell/);
+  assert.match(html, /Run at/);
   assert.match(html, /gran-via\.jpg/);
-  assert.match(html, /Nearby city context · not the mapped scene · not live · not a simulator input/);
-  assert.match(html, /ACCESS · SIMULATED FIXTURE/);
+  assert.match(html, /Follow one camera frame from capture/);
   assert.match(html, /41\.383820, 2\.160500/);
-  assert.match(html, /Inspect scheduler/);
+  assert.match(html, /Compare every destination/);
   assert.doesNotMatch(html, /Metro autonomy/);
   assert.doesNotMatch(html, /low-poly/i);
 });
