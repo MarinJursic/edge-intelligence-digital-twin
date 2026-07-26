@@ -7,23 +7,24 @@ An interactive 5G edge-computing digital twin that makes task-offload decisions,
 
 NEXUS—5G models a small autonomous-mobility district: vehicles, a drone, a phone, a camera, a robot, and sensors move or operate inside a 3D city, connect to gNodeB sectors, and generate AI workloads. A transparent multi-objective scheduler places each workload on the device, a nearby MEC node, a regional edge, or the cloud. Injecting a base-station failure immediately changes the radio state, serving cells, queue pressure, task path, and scheduler decision; restoring it emits a separate recovery transition.
 
-## Operator recovery story
+## Continuous app walkthrough
 
-The repository no longer uses diagram-rendered PNG/GIF/MP4 files as product
-walkthroughs. The executable Three.js application is the source of truth:
+[![Continuous NEXUS-5G application walkthrough showing camera movement, scheduling changes, failure recovery, and both themes](docs/walkthrough/app-walkthrough.gif)](docs/walkthrough/app-walkthrough.mp4)
 
-1. **Healthy:** all three gNodeBs are available and `AV-07` offloads the road
-   hazard workload to `MEC-CENTRAL-01`.
-2. **Outage:** `gNB-CENTRAL` is marked unavailable, five UEs hand over, and the
-   execution path moves to `MEC-WEST-02`.
-3. **Evidence:** execution node, latency, queue depth, SLA, topology state, and
-   event stream change together.
-4. **Recovery:** restoring the station creates a distinct recovery transition and
-   returns admission to the central path.
+[Watch or download the full-resolution MP4](docs/walkthrough/app-walkthrough.mp4)
+· [Open the walkthrough poster](docs/walkthrough/app-walkthrough-poster.jpg)
 
-This sequence is deterministic telemetry from the simulator, not packet-level RF
-evidence. It should be reviewed in the running app, where the camera, task pulses,
-topology, and metrics update together.
+This is one uninterrupted capture of the executable Three.js application. It rotates
+the labeled city, changes the scheduler from MEC to cloud execution, applies a
+restricted-data policy that safely falls back to the device, returns to the adaptive
+policy, and injects a `gNB-CENTRAL` failure. The scene, inventory, active execution
+node, task path, recovery bar, latency, loss, jitter, queue depth, SLA, and event
+stream change together. The walkthrough then changes the complete WebGL and dashboard
+theme during recovery and restores the base station to a distinct healthy state.
+
+The displayed values are deterministic simulator telemetry, not packet-level RF
+measurements. The continuous capture demonstrates the real interaction and rendering
+path without claiming measured 5G performance.
 
 ## Why this project exists
 
@@ -109,7 +110,6 @@ flowchart LR
 | `api/edge_twin/scheduler.py` | Feasibility filters and normalized weighted scoring |
 | `api/edge_twin/simulator.py` | Seeded mobility, node load, failure, recovery, and telemetry generation |
 | `api/edge_twin/adapters.py` | Adapter protocol, validated JSON snapshot adapter, and ns-3/srsRAN seams |
-| `scripts/render_demo.py` | Reproducible README media rendered from real scenario frames |
 
 See [Adapter integration guide](docs/ADAPTERS.md) for concrete ns-3, Open5GS, srsRAN, SUMO, and hardware seams.
 
@@ -296,8 +296,8 @@ These tools are integration targets, not bundled dependencies. Keeping them behi
 - The scheduler is a transparent weighted heuristic, not a mixed-integer,
   reinforcement-learning, or globally optimal controller. It uses hand-tuned
   normalization constants; production use requires trace-derived calibration.
-- The included media is generated from simulator telemetry. It demonstrates the
-  product flow and deterministic state transitions, not measured 5G performance.
+- The walkthrough records the UI rendering deterministic simulator telemetry. It
+  demonstrates product flow and state transitions, not measured 5G performance.
 - Authentication, durable telemetry storage, multi-tenant isolation, admission control, and rate limiting are out of scope.
 - The WebSocket endpoint streams an isolated no-failure baseline; bidirectional stream control is intentionally not implemented, while controlled experiments use the typed HTTP step endpoint.
 - Browser rendering performance depends on the device GPU; the scene favors clarity and portability over geographic detail.
@@ -311,8 +311,8 @@ These tools are integration targets, not bundled dependencies. Keeping them behi
 ├── api/
 │   ├── edge_twin/        contracts, adapters, scheduler, simulator, FastAPI
 │   └── tests/            API and scheduling tests
-├── docs/                 architecture notes and generated demo media
-├── scripts/              reproducible media generation
+├── docs/                 integration notes and continuous app walkthrough media
+├── scripts/              reproducible development utilities
 ├── tests/                server-rendered frontend smoke test
 └── README.md
 ```
