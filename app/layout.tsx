@@ -5,20 +5,20 @@ import { themeBootScript } from "./theme-boot";
 const basePath = process.env.NEXT_PUBLIC_BASE_PATH ?? "";
 
 export const metadata: Metadata = {
-  title: "NEXUS Edge — Barcelona Geographic Operations Twin",
+  title: "NEXUS Edge — Barcelona Edge Operations Workbench",
   description:
-    "A geographic 5G edge-operations workbench with an attributed Barcelona map, deterministic scheduling, outage response, and inspectable provenance.",
+    "An evidence-first 5G edge-operations workbench with real Barcelona context photography, attributed geography, deterministic scheduling, and inspectable provenance.",
   icons: { icon: `${basePath}/favicon.svg`, shortcut: `${basePath}/favicon.svg` },
   openGraph: {
-    title: "NEXUS Edge — Barcelona Geographic Operations Twin",
+    title: "NEXUS Edge — Barcelona Edge Operations Workbench",
     description:
-      "Explore three Barcelona edge scenarios with explicit observed, simulated, and derived data layers.",
+      "Explore three Barcelona edge scenarios with licensed nearby photography and explicit observed, authored-fixture, and computed evidence.",
   },
   twitter: {
     card: "summary",
-    title: "NEXUS Edge — Barcelona Geographic Operations Twin",
+    title: "NEXUS Edge — Barcelona Edge Operations Workbench",
     description:
-      "An attributed geographic operations map for edge scheduling and failure recovery.",
+      "A realistic, evidence-first interface for edge scheduling and failure recovery.",
   },
 };
 

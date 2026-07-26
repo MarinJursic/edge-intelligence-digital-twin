@@ -187,7 +187,7 @@ function selectLocalTarget(
             (sum, [key, value]) => sum + terms[key as keyof ObjectiveWeights] * value,
             0,
           ) / weightSum
-        : Number.POSITIVE_INFINITY;
+        : 0;
     const violations: SchedulerCandidate["violations"] = [];
     if (!placementAllowed) violations.push("PLACEMENT");
     if (!privacyAllowed) violations.push("PRIVACY");
@@ -214,6 +214,7 @@ function selectLocalTarget(
     winner: feasible[0] ?? candidates.find((candidate) => candidate.target === "device")!,
     candidates,
     privacyBlocked: privacyOverride,
+    weightSum,
   };
 }
 
@@ -233,7 +234,7 @@ export function deterministicFrame(
 ): TelemetryFrame {
   const failureRecovery = failed ? Math.min(1, Math.max(0, (tick - 2) / 7)) : 1;
   const spike = failed ? 1 - failureRecovery : 0;
-  const { winner, candidates, privacyBlocked } = selectLocalTarget(
+  const { winner, candidates, privacyBlocked, weightSum } = selectLocalTarget(
     scenario,
     failed,
     mode,
@@ -244,10 +245,12 @@ export function deterministicFrame(
   const latency = winner.latency + (failed ? spike * 11 : 0);
   const privacyRisk = target === "cloud" ? "MEDIUM" : "LOW";
   const rationale = privacyBlocked
-    ? `${privacyClass} data blocks the selected remote tier; the safe local adapter keeps execution on-device.`
+    ? `${privacyClass} data blocks the selected remote tier; the placement and privacy gates keep execution on-device.`
+    : weightSum <= 0
+      ? "Placement and privacy gates passed; with no active objective weight, the deterministic latency tie-break ranks this authored candidate profile first."
     : failed && target === "edge"
-      ? "The nearest healthy MEC minimizes the weighted objective while gNB-CENTRAL is unavailable."
-      : `${target.replace("_", " ")} execution minimizes the active weighted objective and satisfies hard constraints.`;
+      ? "Placement and privacy gates passed; the active weights rank this authored healthy-MEC profile first during the simulated gNB-CENTRAL outage."
+      : `Placement and privacy gates passed; the active weights rank this authored ${target.replace("_", " ")} candidate profile first.`;
 
   return {
     schemaVersion: "1.0",

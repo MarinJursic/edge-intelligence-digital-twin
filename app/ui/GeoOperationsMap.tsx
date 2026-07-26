@@ -121,6 +121,16 @@ export function GeoOperationsMap({
     if (event.key === "-") setZoom((value) => Math.max(.8, value - .1));
   }
 
+  function selectAssetWithKeyboard(
+    event: React.KeyboardEvent<SVGGElement>,
+    assetId: string,
+  ) {
+    if (event.key !== "Enter" && event.key !== " ") return;
+    event.preventDefault();
+    event.stopPropagation();
+    onSelect(assetId);
+  }
+
   return (
     <div className="geo-map" data-theme={theme} data-testid="operations-map">
       <svg
@@ -171,7 +181,16 @@ export function GeoOperationsMap({
             const [x, y] = project(asset.point);
             const outage = failed && asset.id === "gnb-central";
             return (
-              <g key={asset.id} className={`map-asset gnb ${outage ? "outage" : ""} ${selectedId === asset.id ? "selected" : ""}`} onClick={() => onSelect(asset.id)}>
+              <g
+                key={asset.id}
+                className={`map-asset gnb ${outage ? "outage" : ""} ${selectedId === asset.id ? "selected" : ""}`}
+                role="button"
+                tabIndex={0}
+                aria-label={`Select ${asset.name} simulated cell`}
+                aria-pressed={selectedId === asset.id}
+                onClick={() => onSelect(asset.id)}
+                onKeyDown={(event) => selectAssetWithKeyboard(event, asset.id)}
+              >
                 <circle cx={x} cy={y} r="54" className="coverage" />
                 <circle cx={x} cy={y} r="11" className="asset-core" />
                 <path d={`M ${x} ${y - 11} l -9 21 h 18 Z`} className="asset-symbol" />
@@ -182,7 +201,16 @@ export function GeoOperationsMap({
           {layers.compute && fixedAssets.filter((asset) => asset.kind === "mec").map((asset) => {
             const [x, y] = project(asset.point);
             return (
-              <g key={asset.id} className={`map-asset mec ${selectedId === asset.id ? "selected" : ""}`} onClick={() => onSelect(asset.id)}>
+              <g
+                key={asset.id}
+                className={`map-asset mec ${selectedId === asset.id ? "selected" : ""}`}
+                role="button"
+                tabIndex={0}
+                aria-label={`Select ${asset.name} simulated compute site`}
+                aria-pressed={selectedId === asset.id}
+                onClick={() => onSelect(asset.id)}
+                onKeyDown={(event) => selectAssetWithKeyboard(event, asset.id)}
+              >
                 <rect x={x - 9} y={y - 9} width="18" height="18" rx="2" />
                 <text x={x + 15} y={y - 11}>{asset.name}</text>
               </g>
@@ -190,7 +218,15 @@ export function GeoOperationsMap({
           })}
           <path d={pathData(scenario.route)} className="ue-route" />
           {layers.task && <path d={pathData([ue, destination])} className="task-route" />}
-          <g className={`map-asset ue ${selectedId === "active-ue" ? "selected" : ""}`} onClick={() => onSelect("active-ue")}>
+          <g
+            className={`map-asset ue ${selectedId === "active-ue" ? "selected" : ""}`}
+            role="button"
+            tabIndex={0}
+            aria-label={`Select active UE ${scenario.ueId}`}
+            aria-pressed={selectedId === "active-ue"}
+            onClick={() => onSelect("active-ue")}
+            onKeyDown={(event) => selectAssetWithKeyboard(event, "active-ue")}
+          >
             <circle cx={ueX} cy={ueY} r="13" />
             <circle cx={ueX} cy={ueY} r="4" className="ue-core" />
             <text x={ueX + 18} y={ueY - 12}>{scenario.ueId}</text>
@@ -210,7 +246,9 @@ export function GeoOperationsMap({
         <span>ZOOM {zoom.toFixed(2)}×</span>
       </div>
       <div className="map-attribution">
-        <a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors</a>
+        <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">
+          © OpenStreetMap contributors
+        </a>
         <span>ODbL 1.0 · local deterministic extract</span>
       </div>
       {mapStatus === "loading" && (

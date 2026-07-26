@@ -3,26 +3,27 @@
 [![Live preview](https://img.shields.io/badge/live-preview-2ea44f?logo=github)](https://marinjursic.github.io/edge-intelligence-digital-twin/)
 [![Preview status](https://github.com/MarinJursic/edge-intelligence-digital-twin/actions/workflows/pages.yml/badge.svg)](https://github.com/MarinJursic/edge-intelligence-digital-twin/actions/workflows/pages.yml)
 
-An interactive geographic operations workbench for inspecting edge-AI placement,
-radio incidents, privacy constraints, and deterministic recovery on a real Barcelona
-street plan.
+An evidence-first operations workbench for inspecting edge-AI placement, radio
+incidents, privacy constraints, and deterministic recovery in Barcelona.
 
-The base geography is a checked-in OpenStreetMap extract for Barcelona's Eixample.
-Every overlay states what it is: **observed** roads and buildings, **scenario-fixture**
-traffic context, **simulated** radio/compute assets, and **derived** placement
-decisions. The distinction is part of the product, not fine print.
+Each scenario opens on a real, licensed street photograph so the place remains
+recognizable. A separate checked-in OpenStreetMap extract provides the geographic
+evidence view. The interface never plots synthetic network assets on a photograph
+as if they were observed. It labels **reference photography**, **observed geography**,
+**authored scenario fixtures**, and **locally computed** replay metrics and placement
+decisions independently.
 
 ## Continuous app walkthrough
 
-[![Continuous NEXUS Edge Operations Twin walkthrough showing the Barcelona map, scheduler, scenario changes, and both themes](docs/walkthrough/app-walkthrough.gif)](docs/walkthrough/app-walkthrough.mp4)
+[![Continuous NEXUS Edge Operations Twin walkthrough showing Barcelona reference photography, the geographic map, scenario changes, and both themes](docs/walkthrough/app-walkthrough.gif)](docs/walkthrough/app-walkthrough.mp4)
 
 [Watch or download the full-resolution MP4](docs/walkthrough/app-walkthrough.mp4)
 · [Open the walkthrough poster](docs/walkthrough/app-walkthrough-poster.jpg)
 
-The walkthrough is a single continuous pass through the real application. It changes
-between three Barcelona scenarios, rotates and zooms the map, inspects cells and MEC
-sites, opens the scheduler, tests its privacy objective, steps the deterministic
-replay, opens the restricted-camera scenario, and verifies both themes.
+The walkthrough is a single continuous pass through the real application. It starts
+on licensed Barcelona street photography, changes to the observed geographic map,
+opens the keyboard-accessible layer and asset controls, moves to the Plaça workload,
+returns to its nearby photographic context, and verifies the dark theme.
 
 The displayed values are deterministic simulator telemetry, not packet-level RF
 measurements. The continuous capture demonstrates the real interaction and rendering
@@ -34,12 +35,18 @@ Edge-AI scheduling is a systems problem, not just a model-selection problem. Sen
 
 The implemented workbench includes:
 
+- three real, locally bundled Barcelona context photographs with visible source,
+  author, capture date, and Creative Commons license;
 - a real, attributed OSM street/building extract rather than a synthetic low-poly city;
 - three place-specific examples: a Gran Via road hazard, a Plaça Universitat vision burst, and a restricted Balmes camera workload;
+- a focused default view that explains workload → serving cell → execution tier in
+  one line, with the technical map and asset inventory one action away;
 - mouse, touch, wheel, keyboard, and explicit button camera controls;
-- selectable UE, gNodeB, and MEC assets with a visible observed/simulated/derived legend;
+- selectable UE, gNodeB, and MEC assets with a visible
+  reference/observed/authored/computed legend;
 - independently selectable device, MEC, regional-edge, and cloud baselines;
-- normalized latency, energy, cost, privacy-risk, and accuracy-loss weights;
+- independently adjustable raw latency, energy, cost, privacy-risk, and
+  accuracy-loss weights, normalized only while scoring;
 - a one-click `gNB-CENTRAL` outage, handover trace, stabilization progress, task reroute, and explicit restoration;
 - a deterministic replay with play, pause, step, seek, and speed controls;
 - persistent dark and light themes and a downloadable JSON evidence frame;
@@ -75,12 +82,16 @@ its OpenAPI docs are available at [http://localhost:8000/docs](http://localhost:
 ## Demo walkthrough
 
 1. Choose one of the three scenarios from the command bar.
-2. Drag the map to change bearing, use the wheel or `+`/`−` to zoom, use arrow
+2. Read the reference-photo caption, including the source coordinate or explicit
+   absence of one and its distance from the scenario center. The photograph is
+   nearby city context, not the mapped scene, a live feed, or a simulator input.
+3. Drag the map to change bearing, use the wheel or `+`/`−` to zoom, use arrow
    keys to change bearing and pitch, or use the visible camera toolbar.
-3. Toggle buildings, scenario traffic, radio, compute, and task-path layers.
-4. Select the active UE, a gNodeB, or a MEC node from either the map or asset rail.
-5. Open **Inspect scheduler** and compare adaptive, latency, energy, privacy, device,
-   MEC, and cloud policies. Change a weight to create a normalized custom policy.
+4. Open **Layers & assets**—this switches to the geographic map—then toggle
+   buildings, traffic, radio, compute, and task layers or select a UE, gNodeB, or
+   MEC node.
+5. Open **Inspect scheduler** and choose a policy from the single placement-policy
+   control. Expand **Tune objective weights** only when a custom policy is needed.
 6. Change privacy to **Restricted** and confirm that remote candidates are visibly
    blocked while device placement remains feasible.
 7. Select `gNB-CENTRAL`, simulate its outage, inspect the handover and stabilization
@@ -96,6 +107,7 @@ sites, and decisions are scenario data or simulator output.
 
 ```mermaid
 flowchart LR
+    PHOTO["Licensed Barcelona photographs<br/>reference context only"] --> UI
     OSM["Pinned OSM extract<br/>ODbL 1.0"] --> UI["Next.js + TypeScript<br/>geographic operations UI"]
     FIX["Deterministic scenario fixtures"] --> UI
     UI --> KERNEL["Browser replay +<br/>placement baseline"]
@@ -109,6 +121,7 @@ flowchart LR
 
 | Layer | Responsibility |
 | --- | --- |
+| `public/context/*.jpg` | Real Barcelona reference photographs, deliberately separate from simulated and derived overlays |
 | `public/data/barcelona-eixample.geojson` | Deterministic OSM extract with source URL, bbox, timestamp, and ODbL attribution |
 | `scripts/import_osm_extract.mjs` | Reproducible OSM XML-to-GeoJSON import and geometry simplification |
 | `app/ui/GeoOperationsMap.tsx` | Geographic projection, map layers, route rendering, assets, attribution, and camera controls |
@@ -126,15 +139,27 @@ See [Adapter integration guide](docs/ADAPTERS.md) for concrete ns-3, Open5GS, sr
 | Layer | Classification | Provenance |
 | --- | --- | --- |
 | streets + buildings | observed geography | OpenStreetMap API extract, bbox `2.1640,41.3862,2.1660,41.3877`, extracted `2026-07-26`, ODbL 1.0 |
+| street photographs | nearby reference context | three Wikimedia Commons photographs with per-image attribution and source-location disclosure below; not the mapped scenes, live feeds, or scheduler inputs |
 | traffic state + route | scenario fixture | hand-authored deterministic examples aligned to named Eixample streets; not measured or current traffic |
-| gNodeBs + MEC + UEs | simulated | fixed local scenario assets; not operator topology |
-| RSRP/RSRQ/SINR + service KPIs | simulated | deterministic analytical telemetry; not RF measurements |
-| placement + task path | derived | interpretable weighted baseline after feasibility constraints |
+| gNodeBs + MEC + UEs | authored simulated fixture | fixed local scenario assets; not operator topology |
+| nominal RSRP + target profiles | authored scenario fixture | fixed demonstration inputs; not RF or operator measurements |
+| replay service KPIs | computed from fixtures | deterministic local calculations from target profiles and the authored failure curve |
+| placement + task path | computed from fixtures | interpretable weighted ranking after browser placement/privacy gates |
 
 The web app never fetches third-party tiles. `scripts/import_osm_extract.mjs` turns a
 bounded OSM XML response into the compact local GeoJSON file and embeds its endpoint,
 bbox, extraction time, license, and attribution. The attribution remains visible
 inside the map in every theme.
+
+The bundled reference photographs are:
+
+| Scenario | Photograph | Source coordinate | Relationship to scenario center | Creator / license |
+| --- | --- | --- | --- | --- |
+| Gran Via | [April 2025 Gran Via traffic context](https://commons.wikimedia.org/wiki/File:Apagada_2025_a_Barcelona_-_20250428_171402.jpg) | `41.383820, 2.160500` | approximately 510 m away; not the mapped scene | Pere López Brosa / CC BY-SA 4.0 |
+| Plaça Universitat | [Plaça Universitat street context](https://commons.wikimedia.org/wiki/File:Pla%C3%A7a_Universitat_-_20200711_183028.jpg) | `41.384444, 2.163611` | approximately 340 m away; not the mapped scene | Pere López Brosa / CC BY-SA 3.0 |
+| Carrer de Balmes | [Barcelona 3495](https://commons.wikimedia.org/wiki/File:Barcelona_3495.JPG) | not published by the source | distance not asserted; not the mapped scene | Freepenguin / CC BY-SA 3.0 |
+
+See [Third-party notices](THIRD_PARTY_NOTICES.md) for license links and reuse details.
 
 ## Scheduler
 
@@ -149,7 +174,20 @@ J(t, n) =
 + w_accuracy · normalized_accuracy_loss
 ```
 
-Before scoring, hard constraints remove candidates that are unhealthy, violate the accuracy floor, substantially miss the deadline, conflict with the task's privacy class, or fall outside a forced placement baseline. Every candidate reports machine-readable constraint violations. Deterministic tie-breaking uses score, then latency, then node ID. Weight components are bounded to `[0, 1]`, at least one must be non-zero, and scoring normalizes their sum. The analytical latency baseline scales transfer delay with input size and compute delay with requested GFLOP; it is deliberately simple and calibrated only to the included deterministic trace.
+In the web demonstration, placement-policy and privacy gates run before candidate
+ranking. Candidate attributes are authored scenario profiles, and the active raw
+weight total is normalized only during scoring. A slider therefore preserves the
+exact value the operator sets instead of renormalizing the other sliders.
+Deterministic tie-breaking uses score, then latency, then node ID; if every browser
+weight is zero, latency becomes the tie-break.
+
+The Python API scheduler is a separate, stricter implementation. Before it scores,
+deadline, accuracy, privacy, placement, and health constraints remove candidates.
+Every API candidate reports machine-readable constraint violations. API weights are
+bounded to `[0, 1]`, at least one must be non-zero, and scoring normalizes their sum.
+Its analytical latency baseline scales transfer delay with input size and compute
+delay with requested GFLOP; it is deliberately simple and calibrated only to the
+included deterministic trace.
 
 This MVP intentionally uses an interpretable weighted objective. It is a research baseline for comparison with mixed-integer optimization, contextual bandits, reinforcement learning, and online adaptive control—not a claim of globally optimal production placement.
 
@@ -290,6 +328,15 @@ Run every policy on identical seeded traces and report confidence intervals. Sep
   host-level management, and system-level orchestration; NEXUS—5G keeps its
   laptop-scale MEC nodes and scheduler visibly distinct for the same reason:
   [ETSI GS MEC 003 V4.1.1](https://www.etsi.org/deliver/etsi_gs/mec/001_099/003/04.01.01_60/gs_mec003v040101p.pdf).
+- 3GPP's edge-computing overview separates the application, edge-enabler, hosting,
+  management, and transport layers and describes the alignment between 3GPP edge
+  enablers and ETSI MEC. The UI consequently presents application placement and
+  network transport as related but different evidence:
+  [3GPP Edge Computing](https://www.3gpp.org/technologies/edge-computing).
+- O-RAN WG3 defines the Near-RT RIC as a fine-grained data-collection and action
+  loop over E2. NEXUS does not claim to implement a RIC or E2 interface; those remain
+  adapter targets:
+  [O-RAN technical groups](https://www.o-ran.org/technical-groups).
 - 3GPP's 5G system overview identifies edge computing and slicing as distinct
   architectural capabilities. The three dashboard slices are therefore
   workload/SLA views, not separate radio towers or a claim of complete PLMNs:
@@ -325,8 +372,10 @@ These tools are integration targets, not bundled dependencies. Keeping them behi
   demonstrates product flow and state transitions, not measured 5G performance.
 - Authentication, durable telemetry storage, multi-tenant isolation, admission control, and rate limiting are out of scope.
 - The WebSocket endpoint streams an isolated no-failure baseline; bidirectional stream control is intentionally not implemented, while controlled experiments use the typed HTTP step endpoint.
-- The map uses a compact vector extract and a lightweight SVG projection; it is
-  not a full GIS engine and intentionally omits turn-by-turn routing and terrain.
+- The default photography is representative place context, not georeferenced
+  evidence, current traffic, or a camera input. It is never used for placement.
+- The technical map uses a compact vector extract and a lightweight projection; it
+  is not a full GIS engine and intentionally omits turn-by-turn routing and terrain.
 - Open5GS, srsRAN, ns-3/5G-LENA, and SUMO are documented adapter seams and are not installed automatically.
 
 ## Repository layout

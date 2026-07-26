@@ -103,8 +103,9 @@ def schedule(
         feasible, key=lambda candidate: (candidate.score, candidate.latency_ms, candidate.node_id)
     )
     rationale = (
-        f"{winner.target.replace('_', ' ').title()} minimizes the {placement_policy.replace('_', ' ')} objective "
-        f"at {winner.latency_ms:.1f} ms while satisfying accuracy and privacy constraints."
+        f"{winner.target.replace('_', ' ').title()} ranked first under the "
+        f"{placement_policy.replace('_', ' ')} weights at {winner.latency_ms:.1f} ms "
+        "after deadline, accuracy, privacy, placement, and health gates."
     )
     return ScheduleDecision(
         task_id=task.task_id,

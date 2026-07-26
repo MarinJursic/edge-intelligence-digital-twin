@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { GeoOperationsMap, LayerState } from "./GeoOperationsMap";
+import { StreetEvidenceView } from "./StreetEvidenceView";
 import {
   fixedAssets,
   scenarios,
@@ -42,13 +43,6 @@ const initialLayers: LayerState = {
   task: true,
 };
 
-function normalizedWeights(weights: ObjectiveWeights) {
-  const total = Object.values(weights).reduce((sum, value) => sum + value, 0) || 1;
-  return Object.fromEntries(
-    Object.entries(weights).map(([key, value]) => [key, value / total]),
-  ) as unknown as ObjectiveWeights;
-}
-
 export function EdgeTwinDashboard() {
   const [scenarioId, setScenarioId] = useState(scenarios[0].id);
   const scenario = scenarios.find((item) => item.id === scenarioId) ?? scenarios[0];
@@ -62,6 +56,8 @@ export function EdgeTwinDashboard() {
   const [privacyClass, setPrivacyClass] = useState<PrivacyClass>(scenario.privacy);
   const [layers, setLayers] = useState<LayerState>(initialLayers);
   const [selectedId, setSelectedId] = useState("active-ue");
+  const [viewMode, setViewMode] = useState<"context" | "map">("context");
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [schedulerOpen, setSchedulerOpen] = useState(false);
   const [provenanceOpen, setProvenanceOpen] = useState(false);
   const schedulerTriggerRef = useRef<HTMLButtonElement>(null);
@@ -75,6 +71,9 @@ export function EdgeTwinDashboard() {
   );
   const selectedAsset = fixedAssets.find((asset) => asset.id === selectedId);
   const recoveryPct = failed ? failureRecoveryPercent(tick) : 100;
+  const weightTotalPct = Math.round(
+    Object.values(weights).reduce((sum, value) => sum + Math.max(0, value), 0) * 100,
+  );
 
   useEffect(() => {
     if (!playing) return;
@@ -91,7 +90,7 @@ export function EdgeTwinDashboard() {
     const returnFocus = schedulerTriggerRef.current;
     const focusable = () => [
       ...(dialog?.querySelectorAll<HTMLElement>(
-        'button:not([disabled]), input:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), summary, [href], [tabindex]:not([tabindex="-1"])',
       ) ?? []),
     ];
     const focusTimer = window.setTimeout(() => schedulerCloseRef.current?.focus(), 0);
@@ -133,6 +132,8 @@ export function EdgeTwinDashboard() {
     setWeights(POLICY_PRESETS[next.defaultPolicy].weights);
     setPrivacyClass(next.privacy);
     setSelectedId("active-ue");
+    setViewMode("context");
+    setToolsOpen(false);
   }
 
   function chooseMode(next: Exclude<SchedulerMode, "custom">) {
@@ -142,7 +143,7 @@ export function EdgeTwinDashboard() {
 
   function updateWeight(key: keyof ObjectiveWeights, value: number) {
     setMode("custom");
-    setWeights((current) => normalizedWeights({ ...current, [key]: value / 100 }));
+    setWeights((current) => ({ ...current, [key]: Math.max(0, value) / 100 }));
   }
 
   function toggleLayer(key: keyof LayerState) {
@@ -163,10 +164,11 @@ export function EdgeTwinDashboard() {
   function exportFrame() {
     const payload = JSON.stringify({
       classification: {
-        geography: "OBSERVED · OpenStreetMap",
-        trafficContext: "SCENARIO FIXTURE · deterministic, not measured",
-        radioAndCompute: "SIMULATED · deterministic local twin",
-        decision: "DERIVED · interpretable weighted baseline",
+        photography: "REFERENCE · nearby city context, not the mapped scene",
+        geography: "OBSERVED · pinned OpenStreetMap extract",
+        authoredScenario: "AUTHORED FIXTURE · traffic, routes, topology, target profiles, nominal RSRP",
+        replayMetrics: "COMPUTED FROM FIXTURES · deterministic local replay",
+        decision: "COMPUTED FROM FIXTURES · placement/privacy gates, normalized weighted ranking, deterministic tie-break",
       },
       scenario,
       frame,
@@ -194,9 +196,10 @@ export function EdgeTwinDashboard() {
           </select>
         </label>
         <div className="source-status" aria-label="Data classifications">
+          <span><i className="reference" /> REFERENCE PHOTO</span>
           <span><i className="observed" /> OBSERVED MAP</span>
-          <span><i className="simulated" /> SIMULATED RAN</span>
-          <span><i className="derived" /> DERIVED DECISION</span>
+          <span><i className="authored" /> AUTHORED FIXTURE</span>
+          <span><i className="computed" /> COMPUTED</span>
         </div>
         <div className="ops-actions">
           <button type="button" onClick={() => setProvenanceOpen((value) => !value)} aria-expanded={provenanceOpen}>Sources</button>
@@ -209,59 +212,96 @@ export function EdgeTwinDashboard() {
 
       {provenanceOpen && (
         <section className="provenance-banner" aria-label="Data provenance">
-          <div><b>OBSERVED</b><span>Roads and buildings: OpenStreetMap local extract, ODbL 1.0, bbox 2.1640/41.3862/2.1660/41.3877.</span></div>
-          <div><b>FIXTURE</b><span>Traffic states and routes are deterministic scenario inputs; they are not current or measured traffic.</span></div>
-          <div><b>SIMULATED</b><span>gNB locations, radio measurements, UEs, compute sites, slices, failures, and recovery.</span></div>
-          <div><b>BASELINE</b><span>Placement is an interpretable deterministic scheduler, not an optimality or measured-network claim.</span></div>
+          <div><b>REFERENCE</b><span>Nearby Barcelona photographs provide city context only; each source location is disclosed and is not asserted to be the mapped scene.</span></div>
+          <div><b>OBSERVED</b><span>Roads and buildings come from a pinned OpenStreetMap extract, ODbL 1.0, bbox 2.1640/41.3862/2.1660/41.3877.</span></div>
+          <div><b>AUTHORED</b><span>Traffic, routes, topology, target profiles, nominal RSRP, and workload inputs are deterministic scenario fixtures, not measurements.</span></div>
+          <div><b>COMPUTED</b><span>Replay KPIs and candidate rankings are calculated locally from those fixtures; only placement and privacy gates are checked in the browser baseline.</span></div>
         </section>
       )}
 
-      <aside className="layer-rail" aria-label="Map layers and assets">
-        <div className="rail-section">
-          <span className="rail-kicker">LAYERS</span>
-          {([
-            ["buildings", "Buildings", "OBSERVED"],
-            ["traffic", "Traffic state", "SCENARIO"],
-            ["radio", "Cells + sectors", "SIMULATED"],
-            ["compute", "MEC sites", "SIMULATED"],
-            ["task", "Task path", "DERIVED"],
-          ] as [keyof LayerState, string, string][]).map(([key, label, classification]) => (
-            <label className="layer-row" key={key}>
-              <input type="checkbox" checked={layers[key]} onChange={() => toggleLayer(key)} />
-              <span><strong>{label}</strong><small>{classification}</small></span>
-            </label>
-          ))}
-        </div>
-        <div className="rail-section assets">
-          <span className="rail-kicker">NETWORK ASSETS</span>
-          <button type="button" className={selectedId === "active-ue" ? "active" : ""} onClick={() => setSelectedId("active-ue")}>
-            <i className="ue-swatch" /><span><strong>{scenario.ueId}</strong><small>ACTIVE UE</small></span>
-          </button>
-          {fixedAssets.map((asset) => (
-            <button type="button" key={asset.id} className={selectedId === asset.id ? "active" : ""} onClick={() => setSelectedId(asset.id)}>
-              <i className={`${asset.kind}-swatch`} /><span><strong>{asset.name}</strong><small>{asset.kind === "gnb" ? "CANDIDATE CELL" : "COMPUTE SITE"}</small></span>
-            </button>
-          ))}
-        </div>
-        <p className="rail-guidance">Drag the map or use its camera controls. Every simulated overlay is explicitly marked.</p>
-      </aside>
-
       <section className="map-stage" id="operations-map">
-        <div className="map-title">
-          <div><span>BARCELONA / EIXAMPLE</span><h1>{scenario.title}</h1><p>{scenario.place} · {scenario.description}</p></div>
-          <div><span>SCENARIO TRAFFIC</span><strong>{scenario.observed.trafficState}</strong><small>DETERMINISTIC FIXTURE</small></div>
+        <div className="stage-toolbar">
+          <div className="view-switch" role="group" aria-label="Primary evidence view">
+            <button type="button" aria-pressed={viewMode === "context"} onClick={() => setViewMode("context")}>Street context</button>
+            <button type="button" aria-pressed={viewMode === "map"} onClick={() => setViewMode("map")}>Geographic map</button>
+          </div>
+          <button
+            type="button"
+            className="tools-trigger"
+            aria-expanded={toolsOpen}
+            onClick={() => {
+              setViewMode("map");
+              setToolsOpen((value) => !value);
+            }}
+          >
+            Layers &amp; assets
+          </button>
         </div>
-        <GeoOperationsMap
-          key={scenario.id}
-          scenario={scenario}
-          tick={tick}
-          failed={failed}
-          target={frame.decision.target}
-          theme={theme}
-          layers={layers}
-          selectedId={selectedId}
-          onSelect={setSelectedId}
-        />
+        {viewMode === "context" ? (
+          <StreetEvidenceView
+            scenario={scenario}
+            nodeId={frame.decision.nodeId}
+            target={frame.decision.target}
+            latencyMs={frame.metrics.latencyMs}
+            failed={failed}
+          />
+        ) : (
+          <>
+            <div className="map-title">
+              <div><span>OBSERVED GEOGRAPHY</span><h1>{scenario.title}</h1><p>{scenario.place} · {scenario.description}</p></div>
+              <div><span>SCENARIO TRAFFIC</span><strong>{scenario.observed.trafficState}</strong><small>DETERMINISTIC FIXTURE</small></div>
+            </div>
+            <GeoOperationsMap
+              key={scenario.id}
+              scenario={scenario}
+              tick={tick}
+              failed={failed}
+              target={frame.decision.target}
+              theme={theme}
+              layers={layers}
+              selectedId={selectedId}
+              onSelect={(id) => {
+                setSelectedId(id);
+                setViewMode("map");
+              }}
+            />
+          </>
+        )}
+        {toolsOpen && (
+          <aside className="layer-rail" aria-label="Map layers and assets">
+            <div className="tools-head">
+              <div><span>VIEW CONTROLS</span><strong>Layers &amp; assets</strong></div>
+              <button type="button" aria-label="Close layers and assets" onClick={() => setToolsOpen(false)}>×</button>
+            </div>
+            <div className="rail-section">
+              <span className="rail-kicker">MAP LAYERS</span>
+              {([
+                ["buildings", "Buildings", "OBSERVED"],
+                ["traffic", "Traffic state", "SCENARIO"],
+                ["radio", "Cells + sectors", "AUTHORED FIXTURE"],
+                ["compute", "MEC sites", "AUTHORED FIXTURE"],
+                ["task", "Task path", "COMPUTED"],
+              ] as [keyof LayerState, string, string][]).map(([key, label, classification]) => (
+                <label className="layer-row" key={key}>
+                  <input type="checkbox" checked={layers[key]} onChange={() => toggleLayer(key)} />
+                  <span><strong>{label}</strong><small>{classification}</small></span>
+                </label>
+              ))}
+            </div>
+            <div className="rail-section assets">
+              <span className="rail-kicker">NETWORK ASSETS</span>
+              <button type="button" className={selectedId === "active-ue" ? "active" : ""} onClick={() => { setSelectedId("active-ue"); setToolsOpen(false); setViewMode("map"); }}>
+                <i className="ue-swatch" /><span><strong>{scenario.ueId}</strong><small>ACTIVE UE</small></span>
+              </button>
+              {fixedAssets.map((asset) => (
+                <button type="button" key={asset.id} className={selectedId === asset.id ? "active" : ""} onClick={() => { setSelectedId(asset.id); setToolsOpen(false); setViewMode("map"); }}>
+                  <i className={`${asset.kind}-swatch`} /><span><strong>{asset.name}</strong><small>{asset.kind === "gnb" ? "CANDIDATE CELL" : "COMPUTE SITE"}</small></span>
+                </button>
+              ))}
+            </div>
+            <p className="rail-guidance">The photograph is context only. Asset positions appear only on the observed OSM geometry to avoid false visual alignment.</p>
+          </aside>
+        )}
         {failed && (
           <div className="incident-alert" role="status">
             <div><span>SIMULATED INCIDENT</span><strong>gNB-CENTRAL unavailable</strong><small>Five UEs handed over to gNB-WEST · task route recomputed</small></div>
@@ -269,18 +309,16 @@ export function EdgeTwinDashboard() {
           </div>
         )}
         <div className="kpi-strip" aria-label="Current service metrics">
-          <Kpi label="Latency" value={`${frame.metrics.latencyMs.toFixed(1)} ms`} status={frame.metrics.latencyMs < 25 ? "within SLA" : "at risk"} warn={frame.metrics.latencyMs >= 25} />
-          <Kpi label="RSRP" value={failed ? "−89 dBm" : "−72 dBm"} status={failed ? "handover" : "serving cell"} warn={failed} />
-          <Kpi label="RSRQ" value={failed ? "−13.2 dB" : "−8.4 dB"} status="simulated" warn={failed} />
-          <Kpi label="SINR" value={failed ? "7.8 dB" : "19.6 dB"} status="simulated" warn={failed} />
-          <Kpi label="Packet loss" value={`${frame.metrics.packetLossPct.toFixed(2)}%`} status={frame.metrics.packetLossPct < 1 ? "healthy" : "degraded"} warn={frame.metrics.packetLossPct >= 1} />
-          <Kpi label="SLA" value={`${frame.metrics.slaPct}%`} status={failed ? "recovering" : "nominal"} warn={failed} />
+          <Kpi label="Latency" value={`${frame.metrics.latencyMs.toFixed(1)} ms`} status={frame.metrics.latencyMs < 25 ? "fixture-derived · within SLA" : "fixture-derived · at risk"} warn={frame.metrics.latencyMs >= 25} />
+          <Kpi label="RSRP" value={failed ? "−89 dBm" : "−72 dBm"} status={failed ? "authored fixture · handover" : "authored fixture"} warn={failed} />
+          <Kpi label="Packet loss" value={`${frame.metrics.packetLossPct.toFixed(2)}%`} status={frame.metrics.packetLossPct < 1 ? "fixture-derived · healthy" : "fixture-derived · degraded"} warn={frame.metrics.packetLossPct >= 1} />
+          <Kpi label="SLA" value={`${frame.metrics.slaPct}%`} status={failed ? "fixture-derived · recovering" : "fixture-derived · nominal"} warn={failed} />
         </div>
       </section>
 
       <aside className="selection-drawer" aria-label="Selected object details">
         <div className="selection-head">
-          <span>{selectedAsset ? (selectedAsset.kind === "gnb" ? "SIMULATED RADIO" : "SIMULATED COMPUTE") : "SIMULATED UE"}</span>
+          <span>{selectedAsset ? (selectedAsset.kind === "gnb" ? "AUTHORED RADIO FIXTURE" : "AUTHORED COMPUTE FIXTURE") : "AUTHORED UE FIXTURE"}</span>
           <strong>{selectedAsset?.name ?? scenario.ueId}</strong>
           <p>{selectedAsset?.detail ?? scenario.workload}</p>
         </div>
@@ -316,15 +354,17 @@ export function EdgeTwinDashboard() {
         ) : (
           <>
             <section className="decision-summary">
-              <span>ACTIVE PLACEMENT</span>
-              <strong>{frame.decision.nodeId}</strong>
+              <span>{viewMode === "context" ? "DECISION EVIDENCE" : "ACTIVE PLACEMENT"}</span>
+              <strong>{viewMode === "context" ? "Why this route" : frame.decision.nodeId}</strong>
               <p>{frame.decision.rationale}</p>
-              <div className="tier-route" aria-label={`Execution target ${frame.decision.target}`}>
-                {["DEVICE", "MEC", "REGION", "CLOUD"].map((tier) => {
-                  const active = tier.toLowerCase() === (frame.decision.target === "edge" ? "mec" : frame.decision.target === "regional_edge" ? "region" : frame.decision.target);
-                  return <span className={active ? "active" : ""} key={tier}>{tier}</span>;
-                })}
-              </div>
+              {viewMode === "map" && (
+                <div className="tier-route" aria-label={`Execution target ${frame.decision.target}`}>
+                  {["DEVICE", "MEC", "REGION", "CLOUD"].map((tier) => {
+                    const active = tier.toLowerCase() === (frame.decision.target === "edge" ? "mec" : frame.decision.target === "regional_edge" ? "region" : frame.decision.target);
+                    return <span className={active ? "active" : ""} key={tier}>{tier}</span>;
+                  })}
+                </div>
+              )}
               <button ref={schedulerTriggerRef} type="button" onClick={() => setSchedulerOpen(true)}>Inspect scheduler</button>
             </section>
             <label className="privacy-select">Workload privacy
@@ -338,12 +378,12 @@ export function EdgeTwinDashboard() {
           </>
         )}
 
-        <section className="event-feed">
-          <div><span>EVENT TRACE</span><small>DETERMINISTIC</small></div>
+        <details className="event-feed">
+          <summary><span>Event trace</span><small>{frame.events.length} deterministic events</small></summary>
           {frame.events.map((event, index) => (
             <article key={`${event.at}-${index}`}><time>{event.at}</time><i className={event.severity} /><p><strong>{event.label}</strong>{event.detail}</p></article>
           ))}
-        </section>
+        </details>
       </aside>
 
       <footer className="replay-bar">
@@ -366,15 +406,36 @@ export function EdgeTwinDashboard() {
         <div className="sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSchedulerOpen(false); }}>
           <section ref={schedulerDialogRef} className="scheduler-sheet" role="dialog" aria-modal="true" aria-labelledby="scheduler-title">
             <header><div><span>INTERPRETABLE BASELINE</span><h2 id="scheduler-title">Placement scheduler</h2></div><button ref={schedulerCloseRef} type="button" aria-label="Close scheduler" onClick={() => setSchedulerOpen(false)}>×</button></header>
-            <div className="policy-grid">
-              {MODES.map((item) => <button type="button" key={item.id} aria-pressed={mode === item.id} onClick={() => chooseMode(item.id)}>{item.label}</button>)}
+            <div className="scheduler-controls">
+              <label className="policy-select">Placement policy
+                <select
+                  aria-label="Placement policy"
+                  value={mode}
+                  onChange={(event) => {
+                    if (event.target.value !== "custom") {
+                      chooseMode(event.target.value as Exclude<SchedulerMode, "custom">);
+                    }
+                  }}
+                >
+                  {mode === "custom" && <option value="custom">Custom objectives</option>}
+                  {MODES.map((item) => <option value={item.id} key={item.id}>{item.label}</option>)}
+                </select>
+              </label>
+              <div className="scheduler-answer">
+                <span>Current answer</span>
+                <strong>{frame.decision.nodeId}</strong>
+                <small>{frame.metrics.latencyMs.toFixed(1)} ms · constraints checked before scoring</small>
+              </div>
             </div>
-            <div className="weights">
-              <div><strong>Normalized objective</strong><span>{mode === "custom" ? "CUSTOM · sums to 100%" : `${mode.toUpperCase()} PRESET`}</span></div>
-              {WEIGHTS.map(({ key, label }) => (
-                <label key={key}><span>{label}<output>{Math.round(weights[key] * 100)}%</output></span><input aria-label={`${label} objective weight`} type="range" min="0" max="100" value={Math.round(weights[key] * 100)} onChange={(event) => updateWeight(key, Number(event.target.value))} /></label>
-              ))}
-            </div>
+            <details className="advanced-objectives">
+              <summary>Tune objective weights <span>{mode === "custom" ? `CUSTOM · raw total ${weightTotalPct}%` : `${mode.toUpperCase()} PRESET`}</span></summary>
+              <div className="weights">
+                {WEIGHTS.map(({ key, label }) => (
+                  <label key={key}><span>{label}<output>{Math.round(weights[key] * 100)}%</output></span><input aria-label={`${label} objective weight`} type="range" min="0" max="100" value={Math.round(weights[key] * 100)} onChange={(event) => updateWeight(key, Number(event.target.value))} /></label>
+                ))}
+              </div>
+              <p className="weights-note">Each slider preserves the raw value you set. The scheduler normalizes the active total only while scoring candidates; all-zero weights use the latency tie-break.</p>
+            </details>
             <div className="candidate-table">
               <div><span>Candidate</span><span>Latency</span><span>Cost/task</span><span>Feasibility</span></div>
               {frame.candidates.map((candidate) => (
@@ -386,7 +447,7 @@ export function EdgeTwinDashboard() {
                 </div>
               ))}
             </div>
-            <p className="sheet-note">Scores are deterministic simulator output. They are not measured operator performance and do not claim global optimality.</p>
+            <p className="sheet-note">Candidate attributes are authored scenario fixtures. Feasibility and scores are computed locally from those fixtures; they are not measured operator performance and do not claim global optimality.</p>
           </section>
         </div>
       )}

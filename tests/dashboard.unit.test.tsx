@@ -15,26 +15,35 @@ describe("geographic operator interactions", () => {
     const user = userEvent.setup();
     const { container } = render(<EdgeTwinDashboard />);
     expect(screen.getByText("OBSERVED MAP")).toBeTruthy();
-    expect(screen.getByText("SIMULATED RAN")).toBeTruthy();
-    expect(screen.getByText("DERIVED DECISION")).toBeTruthy();
+    expect(screen.getByText("REFERENCE PHOTO")).toBeTruthy();
+    expect(screen.getByText("AUTHORED FIXTURE")).toBeTruthy();
+    expect(screen.getByText("COMPUTED")).toBeTruthy();
+    expect(screen.getByText(/Camera 41.383820, 2.160500/)).toBeTruthy();
+    expect(screen.getAllByText(/not the mapped scene/).length).toBeGreaterThanOrEqual(2);
+    expect(screen.getByText("ACCESS · SIMULATED FIXTURE")).toBeTruthy();
 
     const scenario = screen.getByLabelText("Scenario");
     expect((scenario as HTMLSelectElement).options).toHaveLength(3);
-    const granViaTraffic = [...container.querySelectorAll('[data-testid="scenario-traffic"] path')]
-      .map((path) => path.getAttribute("d"));
     await user.selectOptions(scenario, "placa-vision");
     expect(screen.getByText("Dense vision uplink")).toBeTruthy();
-    expect(screen.getByText(/Plaça Universitat approach/)).toBeTruthy();
+    expect(screen.getAllByText(/Plaça Universitat approach/).length).toBeGreaterThan(0);
+    expect(container.querySelector<HTMLImageElement>(".street-evidence img")?.src).toContain(
+      "placa-universitat.jpg",
+    );
+    await user.click(screen.getByRole("button", { name: "Geographic map" }));
     expect(screen.getByTestId("scenario-traffic").dataset.scenarioId).toBe("placa-vision");
     const placaTraffic = [...container.querySelectorAll('[data-testid="scenario-traffic"] path')]
       .map((path) => path.getAttribute("d"));
-    expect(placaTraffic).not.toEqual(granViaTraffic);
+    expect(placaTraffic).not.toHaveLength(0);
     expect(screen.getByText(/CAM-PLACA-03 →/)).toBeTruthy();
   });
 
   it("toggles every geographic and network layer", async () => {
     const user = userEvent.setup();
     render(<EdgeTwinDashboard />);
+    expect(screen.getByText("Nearby city context · not the mapped scene · not live · not a simulator input")).toBeTruthy();
+    await user.click(screen.getByRole("button", { name: "Layers & assets" }));
+    expect(screen.getByRole("application", { name: /Interactive operations map/ })).toBeTruthy();
     for (const name of ["Buildings", "Traffic state", "Cells \\+ sectors", "MEC sites", "Task path"]) {
       const checkbox = screen.getByRole("checkbox", { name: new RegExp(name, "i") });
       expect((checkbox as HTMLInputElement).checked).toBe(true);
@@ -46,9 +55,10 @@ describe("geographic operator interactions", () => {
   it("opens the scheduler, changes execution policy, and enforces restricted privacy", async () => {
     const user = userEvent.setup();
     const { container } = render(<EdgeTwinDashboard />);
+    await user.click(screen.getByRole("button", { name: "Geographic map" }));
     await user.click(screen.getByRole("button", { name: "Inspect scheduler" }));
     expect(screen.getByRole("dialog", { name: "Placement scheduler" })).toBeTruthy();
-    await user.click(screen.getByRole("button", { name: "Cloud" }));
+    await user.selectOptions(screen.getByRole("combobox", { name: "Placement policy" }), "cloud");
     expect(container.querySelector(".tier-route .active")?.textContent).toBe("CLOUD");
     const candidateRows = [...container.querySelectorAll(".candidate-table > div")];
     expect(candidateRows[1].textContent).toContain("22.2 ms");
@@ -73,22 +83,76 @@ describe("geographic operator interactions", () => {
     expect(document.activeElement).toBe(trigger);
   });
 
-  it("normalizes custom objective weights and identifies the custom policy", async () => {
+  it("preserves raw objective values and normalizes only while scoring", async () => {
     const user = userEvent.setup();
     render(<EdgeTwinDashboard />);
     await user.click(screen.getByRole("button", { name: "Inspect scheduler" }));
+    expect(screen.getByText("42%")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Energy objective weight"), { target: { value: "80" } });
-    expect(screen.getByText(/CUSTOM · sums to 100%/)).toBeTruthy();
+    expect(screen.getByText("CUSTOM · raw total 160%")).toBeTruthy();
     const outputs = [...document.querySelectorAll(".weights output")].map((node) =>
       Number(node.textContent?.replace("%", "") ?? 0),
     );
-    expect(outputs.reduce((sum, value) => sum + value, 0)).toBeGreaterThanOrEqual(98);
-    expect(outputs.reduce((sum, value) => sum + value, 0)).toBeLessThanOrEqual(102);
+    expect(outputs).toEqual([42, 80, 10, 18, 10]);
+    expect(screen.getByText(/preserves the raw value you set/i)).toBeTruthy();
+  });
+
+  it("selects SVG map assets with Enter and Space and exposes synchronized state", async () => {
+    const user = userEvent.setup();
+    render(<EdgeTwinDashboard />);
+    await user.click(screen.getByRole("button", { name: "Geographic map" }));
+
+    const cell = screen.getByRole("button", { name: "Select gNB-CENTRAL simulated cell" });
+    cell.focus();
+    await user.keyboard("{Enter}");
+    expect(cell.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("n78 · 3.5 GHz")).toBeTruthy();
+
+    const mec = screen.getByRole("button", { name: "Select MEC-WEST-02 simulated compute site" });
+    mec.focus();
+    await user.keyboard(" ");
+    expect(mec.getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getAllByText("MEC-WEST-02").length).toBeGreaterThan(0);
+  });
+
+  it("keeps the UE map selection in geographic context and protects external links", async () => {
+    const user = userEvent.setup();
+    render(<EdgeTwinDashboard />);
+    await user.click(screen.getByRole("button", { name: "Layers & assets" }));
+    await user.click(screen.getByRole("button", { name: "Street context" }));
+    await user.click(screen.getByRole("button", { name: /AV-07ACTIVE UE/i }));
+    expect(screen.getByRole("application", { name: /Interactive operations map/ })).toBeTruthy();
+
+    const osmLink = screen.getByRole("link", { name: "© OpenStreetMap contributors" });
+    expect(osmLink.getAttribute("target")).toBe("_blank");
+    expect(osmLink.getAttribute("rel")).toBe("noreferrer");
+
+    await user.click(screen.getByRole("button", { name: "Street context" }));
+    const photoSource = screen.getByRole("link", { name: /Pere López Brosa/ });
+    expect(photoSource.getAttribute("target")).toBe("_blank");
+    expect(photoSource.getAttribute("rel")).toBe("noreferrer");
+  });
+
+  it("does not duplicate the active placement card over the context decision path", () => {
+    const { container } = render(<EdgeTwinDashboard />);
+    expect(container.querySelector(".decision-summary > strong")?.textContent).toBe("Why this route");
+    expect(container.querySelector(".selection-drawer .tier-route")).toBeNull();
+  });
+
+  it("distinguishes authored fixtures from locally computed results", async () => {
+    const user = userEvent.setup();
+    render(<EdgeTwinDashboard />);
+    await user.click(screen.getByRole("button", { name: "Sources" }));
+    expect(screen.getByText(/Traffic, routes, topology, target profiles, nominal RSRP/)).toBeTruthy();
+    expect(screen.getByText(/Replay KPIs and candidate rankings are calculated locally/)).toBeTruthy();
+    expect(screen.getByText("authored fixture")).toBeTruthy();
+    expect(screen.getAllByText(/fixture-derived/).length).toBeGreaterThan(0);
   });
 
   it("simulates and restores a selected cell outage", async () => {
     const user = userEvent.setup();
     render(<EdgeTwinDashboard />);
+    await user.click(screen.getByRole("button", { name: "Layers & assets" }));
     await user.click(screen.getByRole("button", { name: /gNB-CENTRALCANDIDATE CELL/i }));
     await user.click(screen.getByRole("button", { name: "Simulate gNB-CENTRAL outage" }));
     expect(screen.getAllByText("gNB-CENTRAL unavailable")).toHaveLength(2);
@@ -114,6 +178,7 @@ describe("geographic operator interactions", () => {
   it("offers non-drag map camera controls and persists the complete theme", async () => {
     const user = userEvent.setup();
     render(<EdgeTwinDashboard />);
+    await user.click(screen.getByRole("button", { name: "Geographic map" }));
     expect(screen.getByRole("application", { name: /Interactive operations map/ })).toBeTruthy();
     for (const name of ["Zoom in", "Zoom out", "Rotate map left", "Rotate map right", "Reset map bearing and pitch"]) {
       expect(screen.getByRole("button", { name })).toBeTruthy();
@@ -127,6 +192,7 @@ describe("geographic operator interactions", () => {
   it("reports a local map load failure and offers a working retry", async () => {
     const user = userEvent.setup();
     render(<EdgeTwinDashboard />);
+    await user.click(screen.getByRole("button", { name: "Geographic map" }));
     expect((await screen.findByRole("alert")).textContent).toContain("Map extract unavailable.");
     await user.click(screen.getByRole("button", { name: "Retry local map" }));
     await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));

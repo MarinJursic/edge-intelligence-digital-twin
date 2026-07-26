@@ -16,6 +16,17 @@ export type OperationsScenario = {
     capturedAt: string;
     source: string;
   };
+  contextPhoto: {
+    image: string;
+    alt: string;
+    caption: string;
+    author: string;
+    capturedAt: string;
+    license: string;
+    sourceUrl: string;
+    cameraCoordinates: string;
+    distanceFromScenario: string;
+  };
   defaultPolicy: Exclude<SchedulerMode, "custom">;
   privacy: PrivacyClass;
   route: GeoPoint[];
@@ -51,6 +62,17 @@ export const scenarios: OperationsScenario[] = [
       road: "Gran Via de les Corts Catalanes",
       capturedAt: "Deterministic scenario fixture",
       source: "Local example; not measured traffic",
+    },
+    contextPhoto: {
+      image: "/context/gran-via.jpg",
+      alt: "Real street-level photograph of dense vehicle traffic on Gran Via in Barcelona",
+      caption: "Historic Gran Via traffic context during the April 2025 blackout; reference photography only, not scenario telemetry.",
+      author: "Pere López Brosa",
+      capturedAt: "28 April 2025",
+      license: "CC BY-SA 4.0",
+      sourceUrl: "https://commons.wikimedia.org/wiki/File:Apagada_2025_a_Barcelona_-_20250428_171402.jpg",
+      cameraCoordinates: "41.383820, 2.160500",
+      distanceFromScenario: "approximately 510 m from this scenario map center",
     },
     defaultPolicy: "adaptive",
     privacy: "internal",
@@ -99,6 +121,17 @@ export const scenarios: OperationsScenario[] = [
       road: "Carrer de Pelai approach",
       capturedAt: "Deterministic scenario fixture",
       source: "Local example; not measured traffic",
+    },
+    contextPhoto: {
+      image: "/context/placa-universitat.jpg",
+      alt: "Real street-level photograph of Plaça Universitat in Barcelona with pedestrians, taxis, and buildings",
+      caption: "Plaça Universitat street context; reference photography only, not a live camera or scenario input.",
+      author: "Pere López Brosa",
+      capturedAt: "11 July 2020",
+      license: "CC BY-SA 3.0",
+      sourceUrl: "https://commons.wikimedia.org/wiki/File:Pla%C3%A7a_Universitat_-_20200711_183028.jpg",
+      cameraCoordinates: "41.384444, 2.163611",
+      distanceFromScenario: "approximately 340 m from this scenario map center",
     },
     defaultPolicy: "latency",
     privacy: "public",
@@ -150,6 +183,17 @@ export const scenarios: OperationsScenario[] = [
       road: "Carrer de Balmes",
       capturedAt: "Deterministic scenario fixture",
       source: "Local example; not measured traffic",
+    },
+    contextPhoto: {
+      image: "/context/balmes-night.jpg",
+      alt: "Real nighttime street photograph of Carrer de Balmes in Barcelona",
+      caption: "Carrer de Balmes nighttime context; reference photography only, not a surveillance feed or scenario input.",
+      author: "Freepenguin",
+      capturedAt: "3 June 2012",
+      license: "CC BY-SA 3.0",
+      sourceUrl: "https://commons.wikimedia.org/wiki/File:Barcelona_3495.JPG",
+      cameraCoordinates: "not published by the source",
+      distanceFromScenario: "distance not asserted",
     },
     defaultPolicy: "privacy",
     privacy: "restricted",
