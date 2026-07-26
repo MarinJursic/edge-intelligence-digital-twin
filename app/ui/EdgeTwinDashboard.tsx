@@ -1,344 +1,399 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { GeoOperationsMap, LayerState } from "./GeoOperationsMap";
+import {
+  fixedAssets,
+  scenarios,
+} from "./operationsData";
 import {
   deterministicFrame,
+  failureRecoveryPercent,
   ObjectiveWeights,
   POLICY_PRESETS,
   PrivacyClass,
   SchedulerMode,
 } from "./telemetry";
 import { setStoredTheme, useTheme } from "./theme";
-import { TwinScene } from "./TwinScene";
 
-const fmt = (n: number, digits = 1) => n.toFixed(digits);
-const MODES: Exclude<SchedulerMode, "custom">[] = [
-  "adaptive",
-  "latency",
-  "energy",
-  "privacy",
-  "device",
-  "edge",
-  "cloud",
+const MODES: { id: Exclude<SchedulerMode, "custom">; label: string }[] = [
+  { id: "adaptive", label: "Adaptive" },
+  { id: "latency", label: "Latency" },
+  { id: "energy", label: "Energy" },
+  { id: "privacy", label: "Privacy" },
+  { id: "device", label: "Device" },
+  { id: "edge", label: "MEC" },
+  { id: "cloud", label: "Cloud" },
 ];
-const WEIGHT_LABELS: { key: keyof ObjectiveWeights; label: string }[] = [
+
+const WEIGHTS: { key: keyof ObjectiveWeights; label: string }[] = [
   { key: "latency", label: "Latency" },
   { key: "energy", label: "Energy" },
   { key: "monetary_cost", label: "Cost" },
-  { key: "privacy_risk", label: "Privacy risk" },
+  { key: "privacy_risk", label: "Privacy" },
   { key: "accuracy_loss", label: "Accuracy loss" },
 ];
 
+const initialLayers: LayerState = {
+  buildings: true,
+  traffic: true,
+  radio: true,
+  compute: true,
+  task: true,
+};
+
+function normalizedWeights(weights: ObjectiveWeights) {
+  const total = Object.values(weights).reduce((sum, value) => sum + value, 0) || 1;
+  return Object.fromEntries(
+    Object.entries(weights).map(([key, value]) => [key, value / total]),
+  ) as unknown as ObjectiveWeights;
+}
+
 export function EdgeTwinDashboard() {
-  const [tick, setTick] = useState(0);
+  const [scenarioId, setScenarioId] = useState(scenarios[0].id);
+  const scenario = scenarios.find((item) => item.id === scenarioId) ?? scenarios[0];
+  const [tick, setTick] = useState(36);
+  const [playing, setPlaying] = useState(true);
+  const [speed, setSpeed] = useState(1);
   const [failed, setFailed] = useState(false);
-  const [mode, setMode] = useState<SchedulerMode>("adaptive");
-  const [weights, setWeights] = useState<ObjectiveWeights>(POLICY_PRESETS.adaptive.weights);
-  const [privacyClass, setPrivacyClass] = useState<PrivacyClass>("internal");
-  const [justRestored, setJustRestored] = useState(false);
-  const [remoteFrame, setRemoteFrame] = useState<ReturnType<typeof deterministicFrame> | null>(null);
-  const [backendStatus, setBackendStatus] = useState<"connected" | "fallback" | "constraint">("fallback");
+  const [restored, setRestored] = useState(false);
+  const [mode, setMode] = useState<SchedulerMode>(scenario.defaultPolicy);
+  const [weights, setWeights] = useState<ObjectiveWeights>(POLICY_PRESETS[scenario.defaultPolicy].weights);
+  const [privacyClass, setPrivacyClass] = useState<PrivacyClass>(scenario.privacy);
+  const [layers, setLayers] = useState<LayerState>(initialLayers);
+  const [selectedId, setSelectedId] = useState("active-ue");
+  const [schedulerOpen, setSchedulerOpen] = useState(false);
+  const [provenanceOpen, setProvenanceOpen] = useState(false);
+  const schedulerTriggerRef = useRef<HTMLButtonElement>(null);
+  const schedulerDialogRef = useRef<HTMLElement>(null);
+  const schedulerCloseRef = useRef<HTMLButtonElement>(null);
   const theme = useTheme();
-  const localFrame = useMemo(
-    () => deterministicFrame(tick, failed, mode, privacyClass, justRestored, weights),
-    [tick, failed, mode, privacyClass, justRestored, weights],
+
+  const frame = useMemo(
+    () => deterministicFrame(scenario, tick, failed, mode, privacyClass, restored, weights),
+    [scenario, tick, failed, mode, privacyClass, restored, weights],
   );
-  const frame = remoteFrame ?? localFrame;
-  const recoveryPct = failed ? Math.round(Math.min(1, Math.max(0, (tick - 2) / 7)) * 100) : 100;
-  const healthLabel = failed ? (recoveryPct >= 100 ? "REROUTED" : "RECOVERING") : "NOMINAL";
+  const selectedAsset = fixedAssets.find((asset) => asset.id === selectedId);
+  const recoveryPct = failed ? failureRecoveryPercent(tick) : 100;
 
   useEffect(() => {
-    const id = window.setInterval(() => {
-      setTick((v) => {
-        if (v >= 3) setJustRestored(false);
-        return (v + 1) % 1000;
-      });
-    }, 900);
+    if (!playing) return;
+    const id = window.setInterval(
+      () => setTick((value) => failed ? Math.min(99, value + 1) : (value + 1) % 100),
+      900 / speed,
+    );
     return () => window.clearInterval(id);
-  }, []);
+  }, [failed, playing, speed]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    fetch(`${process.env.NEXT_PUBLIC_EDGE_API_URL ?? "http://localhost:8000"}/v1/scenarios/metro-autonomy-01/step`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        failure: failed ? "gnb-central" : "none",
-        privacy_class: privacyClass,
-        placement_policy: mode === "custom" ? "adaptive" : POLICY_PRESETS[mode].placementPolicy,
-        objective_weights: weights,
-      }),
-      signal: controller.signal,
-    })
-      .then((response) => {
-        if (!response.ok) {
-          const error = new Error(response.status === 422 ? "constraint" : "API unavailable");
-          throw error;
-        }
-        return response.json();
-      })
-      .then((payload) => {
-        const selected = payload.decision.candidates.find(
-          (candidate: { node_id: string }) => candidate.node_id === payload.decision.node_id,
-        );
-        setRemoteFrame({
-          schemaVersion: "1.0",
-          scenarioId: payload.scenario_id,
-          tick: payload.tick,
-          seed: payload.seed,
-          source: { adapter: payload.source.name, kind: payload.source.kind, contractVersion: payload.source.contract_version },
-          metrics: {
-            latencyMs: payload.metrics.latency_ms,
-            throughputMbps: payload.metrics.throughput_mbps,
-            packetLossPct: payload.metrics.packet_loss_pct,
-            jitterMs: payload.metrics.jitter_ms,
-            queueDepth: payload.metrics.queue_depth,
-            energyJ: payload.metrics.energy_j,
-            accuracyPct: payload.metrics.accuracy_pct,
-            privacyRisk: payload.metrics.privacy_risk,
-            slaPct: payload.metrics.sla_pct,
-          },
-          decision: {
-            taskId: payload.decision.task_id,
-            workload: "Road hazard segmentation",
-            deviceId: "AV-07",
-            target: payload.decision.target,
-            nodeId: payload.decision.node_id,
-            score: payload.decision.score,
-            rationale: payload.decision.rationale,
-            monetaryCostUsd: selected.monetary_cost_usd,
-            accuracyLossPct: 100 - selected.accuracy_pct,
-            privacyRiskScore: selected.privacy_risk,
-          },
-          slices: payload.slices.map((slice: { name: string; utilization_pct: number }, index: number) => ({
-            name: slice.name,
-            utilizationPct: slice.utilization_pct,
-            reservedMbps: payload.slices[index].reserved_mbps,
-            color: ["#56e8ff", "#5794ff", "#a9ed66"][index] ?? "#56e8ff",
-          })),
-          events: payload.events,
-          failedBaseStation: payload.failed_base_station,
-        });
-        setBackendStatus("connected");
-      })
-      .catch((error: unknown) => {
-        if ((error as Error).name !== "AbortError") {
-          setRemoteFrame(null);
-          setBackendStatus((error as Error).message === "constraint" ? "constraint" : "fallback");
-        }
-      });
-    return () => controller.abort();
-  }, [tick, failed, mode, weights, privacyClass]);
+    if (!schedulerOpen) return;
+    const dialog = schedulerDialogRef.current;
+    const returnFocus = schedulerTriggerRef.current;
+    const focusable = () => [
+      ...(dialog?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), select:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+      ) ?? []),
+    ];
+    const focusTimer = window.setTimeout(() => schedulerCloseRef.current?.focus(), 0);
+    const keyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setSchedulerOpen(false);
+        return;
+      }
+      if (event.key !== "Tab") return;
+      const items = focusable();
+      if (!items.length) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener("keydown", keyDown);
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("keydown", keyDown);
+      returnFocus?.focus();
+    };
+  }, [schedulerOpen]);
 
-  const toggleFailure = () => {
-    setJustRestored(failed);
-    setFailed((v) => !v);
+  function chooseScenario(id: string) {
+    const next = scenarios.find((item) => item.id === id) ?? scenarios[0];
+    setScenarioId(id);
     setTick(0);
-  };
-
-  const selectMode = (nextMode: Exclude<SchedulerMode, "custom">) => {
-    setMode(nextMode);
-    setWeights(POLICY_PRESETS[nextMode].weights);
-  };
-
-  const updateWeight = (key: keyof ObjectiveWeights, value: number) => {
-    setMode("custom");
-    setWeights((current) => ({ ...current, [key]: value }));
-  };
-
-  const resetScenario = async () => {
+    setPlaying(true);
     setFailed(false);
-    setJustRestored(false);
+    setRestored(false);
+    setMode(next.defaultPolicy);
+    setWeights(POLICY_PRESETS[next.defaultPolicy].weights);
+    setPrivacyClass(next.privacy);
+    setSelectedId("active-ue");
+  }
+
+  function chooseMode(next: Exclude<SchedulerMode, "custom">) {
+    setMode(next);
+    setWeights(POLICY_PRESETS[next].weights);
+  }
+
+  function updateWeight(key: keyof ObjectiveWeights, value: number) {
+    setMode("custom");
+    setWeights((current) => normalizedWeights({ ...current, [key]: value / 100 }));
+  }
+
+  function toggleLayer(key: keyof LayerState) {
+    setLayers((current) => ({ ...current, [key]: !current[key] }));
+  }
+
+  function reset() {
     setTick(0);
-    try {
-      await fetch(`${process.env.NEXT_PUBLIC_EDGE_API_URL ?? "http://localhost:8000"}/v1/scenarios/metro-autonomy-01/reset`, {
-        method: "POST",
-      });
-    } catch {
-      // The deterministic browser adapter has already reset locally.
-    }
-  };
+    setPlaying(false);
+    setFailed(false);
+    setRestored(false);
+    setMode(scenario.defaultPolicy);
+    setWeights(POLICY_PRESETS[scenario.defaultPolicy].weights);
+    setPrivacyClass(scenario.privacy);
+    setSelectedId("active-ue");
+  }
+
+  function exportFrame() {
+    const payload = JSON.stringify({
+      classification: {
+        geography: "OBSERVED · OpenStreetMap",
+        trafficContext: "SCENARIO FIXTURE · deterministic, not measured",
+        radioAndCompute: "SIMULATED · deterministic local twin",
+        decision: "DERIVED · interpretable weighted baseline",
+      },
+      scenario,
+      frame,
+    }, null, 2);
+    const url = URL.createObjectURL(new Blob([payload], { type: "application/json" }));
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `nexus-${scenario.id}-frame-${tick}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
-    <main className="shell">
-      <header className="topbar">
-        <div className="brand">
-          <div className="brand-mark" aria-hidden="true" />
-          <div className="brand-name">NEXUS<span>—5G</span></div>
-          <div className="env">DIGITAL TWIN / METRO-01</div>
+    <main className="ops-shell">
+      <header className="ops-command">
+        <a className="ops-brand" href="#operations-map" aria-label="Nexus network operations">
+          <span aria-hidden="true">N</span>
+          <strong>NEXUS</strong>
+          <small>EDGE OPERATIONS TWIN</small>
+        </a>
+        <label className="scenario-select">
+          <span>Scenario</span>
+          <select value={scenarioId} onChange={(event) => chooseScenario(event.target.value)}>
+            {scenarios.map((item) => <option value={item.id} key={item.id}>{item.shortLabel} · {item.title}</option>)}
+          </select>
+        </label>
+        <div className="source-status" aria-label="Data classifications">
+          <span><i className="observed" /> OBSERVED MAP</span>
+          <span><i className="simulated" /> SIMULATED RAN</span>
+          <span><i className="derived" /> DERIVED DECISION</span>
         </div>
-        <div className="top-status">
-          <div className="live"><i className="live-dot" />{backendStatus === "connected" ? "API CONNECTED" : backendStatus === "constraint" ? "POLICY BLOCKED" : "LOCAL TWIN"}</div>
-          <span>SEED 42</span>
-          <span className="clock">2026-07-25&nbsp;&nbsp;14:32:{String(tick % 60).padStart(2,"0")}.042Z</span>
-          <button
-            className="theme-toggle"
-            type="button"
-            aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`}
-            aria-pressed={theme === "light"}
-            onClick={() => setStoredTheme(theme === "dark" ? "light" : "dark")}
-          >
-            <span aria-hidden="true">{theme === "dark" ? "☀" : "☾"}</span>
-            {theme === "dark" ? "LIGHT" : "DARK"}
+        <div className="ops-actions">
+          <button type="button" onClick={() => setProvenanceOpen((value) => !value)} aria-expanded={provenanceOpen}>Sources</button>
+          <button type="button" onClick={exportFrame}>Export</button>
+          <button type="button" aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`} onClick={() => setStoredTheme(theme === "dark" ? "light" : "dark")}>
+            {theme === "dark" ? "Light" : "Dark"}
           </button>
-          <button className="top-action" type="button" onClick={resetScenario}>↻ RESET</button>
         </div>
       </header>
 
-      <div className="workspace">
-        <aside className="rail" aria-label="Simulation controls">
-          <div className="kicker">Scenario</div>
-          <div className="scenario-card">
-            <div className="scenario-title">Metro autonomy <i /></div>
-            <div className="scenario-sub">Urban mobility · 3 gNodeBs<br />2 MEC zones · 1 cloud region</div>
-          </div>
-          <div className="kicker" style={{marginTop:22}}>Scheduler policy</div>
-          <div className="mode-grid">
-            {MODES.map((item) => (
-              <button
-                key={item}
-                type="button"
-                className={`mode-btn ${mode === item ? "active" : ""}`}
-                aria-pressed={mode === item}
-                onClick={() => selectMode(item)}
-              >
-                {item.toUpperCase()}
-              </button>
-            ))}
-          </div>
-          <div className="weight-head"><span>Objective weights</span><output>{mode === "custom" ? "CUSTOM" : "PRESET"}</output></div>
-          {WEIGHT_LABELS.map(({key,label}) => (
-            <label className="weight-row" key={key}>
-              <span>{label}<output>{Math.round(weights[key] * 100)}%</output></span>
-              <input
-                aria-label={`${label} objective weight`}
-                type="range"
-                min="0"
-                max="100"
-                value={Math.round(weights[key] * 100)}
-                onChange={(event) => updateWeight(key, Number(event.target.value) / 100)}
-              />
+      {provenanceOpen && (
+        <section className="provenance-banner" aria-label="Data provenance">
+          <div><b>OBSERVED</b><span>Roads and buildings: OpenStreetMap local extract, ODbL 1.0, bbox 2.1640/41.3862/2.1660/41.3877.</span></div>
+          <div><b>FIXTURE</b><span>Traffic states and routes are deterministic scenario inputs; they are not current or measured traffic.</span></div>
+          <div><b>SIMULATED</b><span>gNB locations, radio measurements, UEs, compute sites, slices, failures, and recovery.</span></div>
+          <div><b>BASELINE</b><span>Placement is an interpretable deterministic scheduler, not an optimality or measured-network claim.</span></div>
+        </section>
+      )}
+
+      <aside className="layer-rail" aria-label="Map layers and assets">
+        <div className="rail-section">
+          <span className="rail-kicker">LAYERS</span>
+          {([
+            ["buildings", "Buildings", "OBSERVED"],
+            ["traffic", "Traffic state", "SCENARIO"],
+            ["radio", "Cells + sectors", "SIMULATED"],
+            ["compute", "MEC sites", "SIMULATED"],
+            ["task", "Task path", "DERIVED"],
+          ] as [keyof LayerState, string, string][]).map(([key, label, classification]) => (
+            <label className="layer-row" key={key}>
+              <input type="checkbox" checked={layers[key]} onChange={() => toggleLayer(key)} />
+              <span><strong>{label}</strong><small>{classification}</small></span>
             </label>
           ))}
-          <label className="control-label" htmlFor="privacy-class">
-            Workload privacy <output aria-hidden="true">{privacyClass.toUpperCase()}</output>
-          </label>
-          <select id="privacy-class" value={privacyClass} onChange={(event) => setPrivacyClass(event.target.value as PrivacyClass)}>
-            <option value="public">Public</option>
-            <option value="internal">Internal</option>
-            <option value="sensitive">Sensitive</option>
-            <option value="restricted">Restricted</option>
-          </select>
-          <button
-            className={`fault-btn ${failed ? "active" : ""}`}
-            type="button"
-            aria-pressed={failed}
-            onClick={toggleFailure}
-          >
-            {failed ? "✓ RESTORE gNB-CENTRAL" : "⚠ INJECT BASE-STATION FAILURE"}
+        </div>
+        <div className="rail-section assets">
+          <span className="rail-kicker">NETWORK ASSETS</span>
+          <button type="button" className={selectedId === "active-ue" ? "active" : ""} onClick={() => setSelectedId("active-ue")}>
+            <i className="ue-swatch" /><span><strong>{scenario.ueId}</strong><small>ACTIVE UE</small></span>
           </button>
+          {fixedAssets.map((asset) => (
+            <button type="button" key={asset.id} className={selectedId === asset.id ? "active" : ""} onClick={() => setSelectedId(asset.id)}>
+              <i className={`${asset.kind}-swatch`} /><span><strong>{asset.name}</strong><small>{asset.kind === "gnb" ? "CANDIDATE CELL" : "COMPUTE SITE"}</small></span>
+            </button>
+          ))}
+        </div>
+        <p className="rail-guidance">Drag the map or use its camera controls. Every simulated overlay is explicitly marked.</p>
+      </aside>
 
-          <div className="kicker" style={{marginTop:26}}>Network inventory</div>
-          <div className="legend">
-            {[
-              ["#56e8ff","gNodeBs","3 / 3"],
-              ["#5794ff","MEC nodes","2 / 2"],
-              ["#ffbd59","Autonomous fleet","8"],
-              ["#a9ed66","Aerial devices","1"],
-              ["#d8efff","Phone · camera · robot","3"],
-              ["#8a99ad","IoT sensors","4"],
-            ].map(([c,n,v])=><div className="legend-row" key={n}><span className="legend-name"><i className="legend-swatch" style={{background:c}} />{n}</span><b>{failed&&n==="gNodeBs"?"2 / 3":v}</b></div>)}
+      <section className="map-stage" id="operations-map">
+        <div className="map-title">
+          <div><span>BARCELONA / EIXAMPLE</span><h1>{scenario.title}</h1><p>{scenario.place} · {scenario.description}</p></div>
+          <div><span>SCENARIO TRAFFIC</span><strong>{scenario.observed.trafficState}</strong><small>DETERMINISTIC FIXTURE</small></div>
+        </div>
+        <GeoOperationsMap
+          key={scenario.id}
+          scenario={scenario}
+          tick={tick}
+          failed={failed}
+          target={frame.decision.target}
+          theme={theme}
+          layers={layers}
+          selectedId={selectedId}
+          onSelect={setSelectedId}
+        />
+        {failed && (
+          <div className="incident-alert" role="status">
+            <div><span>SIMULATED INCIDENT</span><strong>gNB-CENTRAL unavailable</strong><small>Five UEs handed over to gNB-WEST · task route recomputed</small></div>
+            <div className="recovery"><span>Stabilization {recoveryPct}%</span><div role="progressbar" aria-label="Reroute stabilization" aria-valuemin={0} aria-valuemax={100} aria-valuenow={recoveryPct}><i style={{ width: `${recoveryPct}%` }} /></div></div>
           </div>
-          <div className="scenario-sub" style={{padding:"0 6px"}}>
-            Drag the 3D viewport to rotate. The white pulse follows the current task migration path.
-          </div>
-        </aside>
+        )}
+        <div className="kpi-strip" aria-label="Current service metrics">
+          <Kpi label="Latency" value={`${frame.metrics.latencyMs.toFixed(1)} ms`} status={frame.metrics.latencyMs < 25 ? "within SLA" : "at risk"} warn={frame.metrics.latencyMs >= 25} />
+          <Kpi label="RSRP" value={failed ? "−89 dBm" : "−72 dBm"} status={failed ? "handover" : "serving cell"} warn={failed} />
+          <Kpi label="RSRQ" value={failed ? "−13.2 dB" : "−8.4 dB"} status="simulated" warn={failed} />
+          <Kpi label="SINR" value={failed ? "7.8 dB" : "19.6 dB"} status="simulated" warn={failed} />
+          <Kpi label="Packet loss" value={`${frame.metrics.packetLossPct.toFixed(2)}%`} status={frame.metrics.packetLossPct < 1 ? "healthy" : "degraded"} warn={frame.metrics.packetLossPct >= 1} />
+          <Kpi label="SLA" value={`${frame.metrics.slaPct}%`} status={failed ? "recovering" : "nominal"} warn={failed} />
+        </div>
+      </section>
 
-        <section className="stage" aria-label="Digital twin viewport">
-          <TwinScene failed={failed} tick={tick} target={frame.decision.target} theme={theme} />
-          <div className="scene-head">
-            <div><div className="scene-title">CITY CORE / OPERATIONS VIEW</div><div className="scene-sub">41.387° N · 2.170° E &nbsp; / &nbsp; SCALE 1:2400</div></div>
-            <div className="view-pill">PERSPECTIVE&nbsp;&nbsp;·&nbsp;&nbsp;RADIO + COMPUTE</div>
-          </div>
-          <div className="scene-summary" aria-label="Scenario summary" aria-live="polite">
-            <span><i className={failed ? "status-warn" : ""} />NETWORK <b>{healthLabel}</b></span>
-            <span>EXECUTION <b>{frame.decision.nodeId}</b></span>
-            <span>SLA <b>{frame.metrics.slaPct}%</b></span>
-            <span>ACTIVE UEs <b>16</b></span>
-          </div>
-          {failed && (
-            <div className="alert" role="status">
-              <strong>gNB-CENTRAL SIGNAL LOST</strong>
-              <span>Five UEs reassigned to gNB-WEST · analytical recovery window 8.1 s</span>
-              <div
-                className="recovery-meter"
-                role="progressbar"
-                aria-label="Reroute stabilization"
-                aria-valuemin={0}
-                aria-valuemax={100}
-                aria-valuenow={recoveryPct}
+      <aside className="selection-drawer" aria-label="Selected object details">
+        <div className="selection-head">
+          <span>{selectedAsset ? (selectedAsset.kind === "gnb" ? "SIMULATED RADIO" : "SIMULATED COMPUTE") : "SIMULATED UE"}</span>
+          <strong>{selectedAsset?.name ?? scenario.ueId}</strong>
+          <p>{selectedAsset?.detail ?? scenario.workload}</p>
+        </div>
+
+        {selectedAsset?.kind === "gnb" ? (
+          <>
+            <dl className="asset-facts">
+              <div><dt>Band</dt><dd>n78 · 3.5 GHz</dd></div>
+              <div><dt>Bandwidth</dt><dd>100 MHz</dd></div>
+              <div><dt>Numerology</dt><dd>µ = 1 · 30 kHz</dd></div>
+              <div><dt>PRB load</dt><dd>{failed && selectedAsset.id === "gnb-central" ? "OFFLINE" : "63%"}</dd></div>
+              <div><dt>Attached UEs</dt><dd>{failed && selectedAsset.id === "gnb-central" ? "0" : "5"}</dd></div>
+            </dl>
+            {selectedAsset.id === "gnb-central" && (
+              <button
+                type="button"
+                className={`incident-button ${failed ? "restore" : ""}`}
+                onClick={() => {
+                  if (failed) {
+                    setFailed(false);
+                    setRestored(true);
+                  } else {
+                    setFailed(true);
+                    setRestored(false);
+                  }
+                  setTick(0);
+                }}
               >
-                <i style={{ width: `${recoveryPct}%` }} />
+                {failed ? "Restore gNB-CENTRAL" : "Simulate gNB-CENTRAL outage"}
+              </button>
+            )}
+          </>
+        ) : (
+          <>
+            <section className="decision-summary">
+              <span>ACTIVE PLACEMENT</span>
+              <strong>{frame.decision.nodeId}</strong>
+              <p>{frame.decision.rationale}</p>
+              <div className="tier-route" aria-label={`Execution target ${frame.decision.target}`}>
+                {["DEVICE", "MEC", "REGION", "CLOUD"].map((tier) => {
+                  const active = tier.toLowerCase() === (frame.decision.target === "edge" ? "mec" : frame.decision.target === "regional_edge" ? "region" : frame.decision.target);
+                  return <span className={active ? "active" : ""} key={tier}>{tier}</span>;
+                })}
               </div>
-            </div>
-          )}
-          {backendStatus === "constraint" && <div className="alert constraint-alert" role="alert"><strong>PLACEMENT BLOCKED</strong><span>The selected tier violates the privacy or feasibility constraint. The safe local preview remains on-device.</span></div>}
-          <div className="timeline">
-            <div className="timeline-row"><strong>{failed ? "FAILURE RECOVERY SEQUENCE" : "DETERMINISTIC SCENARIO REPLAY"}</strong><span>T+{fmt((tick%20)*.9)} s &nbsp; · &nbsp; 1×</span></div>
-            <div className="timeline-track"><div className="timeline-progress" style={{width:`${Math.min(100,(tick%20)*5)}%`}} /><i className="timeline-marker" style={{left:`calc(${Math.min(99,(tick%20)*5)}% - 5px)`}} /></div>
-          </div>
-        </section>
+              <button ref={schedulerTriggerRef} type="button" onClick={() => setSchedulerOpen(true)}>Inspect scheduler</button>
+            </section>
+            <label className="privacy-select">Workload privacy
+              <select aria-label="Workload privacy" value={privacyClass} onChange={(event) => setPrivacyClass(event.target.value as PrivacyClass)}>
+                <option value="public">Public</option>
+                <option value="internal">Internal</option>
+                <option value="sensitive">Sensitive</option>
+                <option value="restricted">Restricted</option>
+              </select>
+            </label>
+          </>
+        )}
 
-        <aside className="inspector" aria-label="Live telemetry">
-          <section className="section">
-            <div className="section-head">
-              <h2>Active decision</h2>
-              <span title="Normalized weighted objective; lower is better">
-                {frame.decision.score} OBJECTIVE ↓
-              </span>
+        <section className="event-feed">
+          <div><span>EVENT TRACE</span><small>DETERMINISTIC</small></div>
+          {frame.events.map((event, index) => (
+            <article key={`${event.at}-${index}`}><time>{event.at}</time><i className={event.severity} /><p><strong>{event.label}</strong>{event.detail}</p></article>
+          ))}
+        </section>
+      </aside>
+
+      <footer className="replay-bar">
+        <div className="replay-controls" role="toolbar" aria-label="Scenario replay">
+          <button type="button" aria-label="Reset replay" onClick={reset}>↺</button>
+          <button type="button" aria-label={playing ? "Pause replay" : "Play replay"} onClick={() => setPlaying((value) => !value)}>{playing ? "Ⅱ" : "▶"}</button>
+          <button type="button" aria-label="Step replay forward" onClick={() => { setPlaying(false); setTick((value) => failed ? Math.min(99, value + 1) : (value + 1) % 100); }}>→</button>
+        </div>
+        <span className="replay-time">T+{(tick * .9).toFixed(1)} s</span>
+        <input aria-label="Replay position" type="range" min="0" max="99" value={tick} onChange={(event) => { setPlaying(false); setTick(Number(event.target.value)); }} />
+        <div className="event-markers" aria-hidden="true"><i style={{ left: "18%" }} /><i style={{ left: "54%" }} /><i style={{ left: "78%" }} /></div>
+        <label>Speed
+          <select aria-label="Replay speed" value={speed} onChange={(event) => setSpeed(Number(event.target.value))}>
+            <option value=".5">0.5×</option><option value="1">1×</option><option value="2">2×</option>
+          </select>
+        </label>
+      </footer>
+
+      {schedulerOpen && (
+        <div className="sheet-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setSchedulerOpen(false); }}>
+          <section ref={schedulerDialogRef} className="scheduler-sheet" role="dialog" aria-modal="true" aria-labelledby="scheduler-title">
+            <header><div><span>INTERPRETABLE BASELINE</span><h2 id="scheduler-title">Placement scheduler</h2></div><button ref={schedulerCloseRef} type="button" aria-label="Close scheduler" onClick={() => setSchedulerOpen(false)}>×</button></header>
+            <div className="policy-grid">
+              {MODES.map((item) => <button type="button" key={item.id} aria-pressed={mode === item.id} onClick={() => chooseMode(item.id)}>{item.label}</button>)}
             </div>
-            <div className="decision">
-              <div className="decision-route">
-                <div className={`node ${frame.decision.target==="device"?"on":""}`}><i>⌁</i>DEVICE</div><div className="arrow" />
-                <div className={`node ${frame.decision.target==="edge"?"on":""}`}><i>▣</i>MEC</div><div className="arrow" />
-                <div className={`node ${frame.decision.target==="regional_edge"?"on":""}`}><i>⬡</i>REGION</div><div className="arrow" />
-                <div className={`node ${frame.decision.target==="cloud"?"on":""}`}><i>◇</i>CLOUD</div>
-              </div>
-              <div className="decision-copy"><strong>{frame.decision.workload}</strong><span>{frame.decision.taskId} · {frame.decision.deviceId}<br />{frame.decision.rationale}</span></div>
+            <div className="weights">
+              <div><strong>Normalized objective</strong><span>{mode === "custom" ? "CUSTOM · sums to 100%" : `${mode.toUpperCase()} PRESET`}</span></div>
+              {WEIGHTS.map(({ key, label }) => (
+                <label key={key}><span>{label}<output>{Math.round(weights[key] * 100)}%</output></span><input aria-label={`${label} objective weight`} type="range" min="0" max="100" value={Math.round(weights[key] * 100)} onChange={(event) => updateWeight(key, Number(event.target.value))} /></label>
+              ))}
             </div>
-          </section>
-          <section className="section">
-            <div className="section-head"><h2>Service telemetry</h2><span>{frame.source.adapter}</span></div>
-            <div className="metric-grid">
-              <Metric label="End-to-end latency" value={fmt(frame.metrics.latencyMs)} unit="ms" delta={frame.metrics.latencyMs < 25 ? "SLA • < 25 ms":"SLA AT RISK"} warn={frame.metrics.latencyMs>=25}/>
-              <Metric label="Throughput" value={fmt(frame.metrics.throughputMbps,0)} unit="Mbps" delta="DL AGGREGATE"/>
-              <Metric label="Packet loss" value={fmt(frame.metrics.packetLossPct,2)} unit="%" delta={frame.metrics.packetLossPct < 1 ? "HEALTHY" : "DEGRADED"} warn={frame.metrics.packetLossPct >= 1}/>
-              <Metric label="Jitter" value={fmt(frame.metrics.jitterMs)} unit="ms" delta={frame.metrics.jitterMs < 5 ? "STABLE" : "SLA AT RISK"} warn={frame.metrics.jitterMs >= 5}/>
-              <Metric label="Queue depth" value={String(frame.metrics.queueDepth)} unit="tasks" delta={frame.metrics.queueDepth<25?"HEALTHY":"REBALANCING"} warn={frame.metrics.queueDepth>=25}/>
-              <Metric label="Device energy" value={fmt(frame.metrics.energyJ)} unit="J/task" delta="−18.4% BASELINE"/>
-              <Metric label="Model accuracy" value={fmt(frame.metrics.accuracyPct)} unit="%" delta="CALIBRATED"/>
-              <Metric label="Privacy risk" value={frame.metrics.privacyRisk} unit="" delta={frame.decision.target.toUpperCase()+" EXECUTION"} warn={frame.metrics.privacyRisk!=="LOW"}/>
+            <div className="candidate-table">
+              <div><span>Candidate</span><span>Latency</span><span>Cost/task</span><span>Feasibility</span></div>
+              {frame.candidates.map((candidate) => (
+                <div className={frame.decision.target === candidate.target ? "winner" : ""} key={candidate.target}>
+                  <strong>{candidate.label}</strong>
+                  <span>{candidate.latencyMs.toFixed(1)} ms</span>
+                  <span>{candidate.monetaryCostUsd === 0 ? "$0" : `$${candidate.monetaryCostUsd.toFixed(4)}`}</span>
+                  <span>{candidate.feasible ? "FEASIBLE" : `${candidate.violations.join(" + ")} BLOCK`}</span>
+                </div>
+              ))}
             </div>
-            <div className="objective-readout">
-              <span>Cost <b>${frame.decision.monetaryCostUsd.toFixed(4)}/task</b></span>
-              <span>Accuracy loss <b>{frame.decision.accuracyLossPct.toFixed(1)}%</b></span>
-              <span>Risk score <b>{frame.decision.privacyRiskScore.toFixed(2)}</b></span>
-            </div>
+            <p className="sheet-note">Scores are deterministic simulator output. They are not measured operator performance and do not claim global optimality.</p>
           </section>
-          <section className="section">
-            <div className="section-head"><h2>Network slices</h2><span>{frame.metrics.slaPct}% SLA</span></div>
-            {frame.slices.map(s=><div className="slice-row" key={s.name}><div className="slice-meta"><span>{s.name}</span><span>{s.utilizationPct}% · {s.reservedMbps} Mbps reserved</span></div><div className="bar"><i style={{width:`${s.utilizationPct}%`,background:s.color,boxShadow:`0 0 8px ${s.color}`}} /></div></div>)}
-          </section>
-          <section className="section">
-            <div className="section-head"><h2>Event stream</h2><span>LIVE</span></div>
-            {frame.events.map((e,i)=><div className="event" key={`${e.at}-${i}`}><span>{e.at}</span><i style={{background:e.severity==="warning"?"#ff677d":e.severity==="recovered"?"#a9ed66":"#56e8ff"}}/><div><strong>{e.label}</strong>{e.detail}</div></div>)}
-          </section>
-        </aside>
-      </div>
+        </div>
+      )}
     </main>
   );
 }
 
-function Metric({ label, value, unit, delta, warn=false }: {label:string;value:string;unit:string;delta:string;warn?:boolean}) {
-  return <div className={`metric ${warn?"warn":""}`}><div className="metric-label">{label}</div><div className="metric-value">{value}<small>{unit}</small></div><div className="metric-delta">{delta}</div></div>;
+function Kpi({ label, value, status, warn = false }: { label: string; value: string; status: string; warn?: boolean }) {
+  return <div className={warn ? "warn" : ""}><span>{label}</span><strong>{value}</strong><small>{status}</small></div>;
 }

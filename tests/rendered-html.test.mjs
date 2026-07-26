@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 async function render() {
@@ -10,13 +11,42 @@ async function render() {
   }, { waitUntil() {}, passThroughOnException() {} });
 }
 
-test("server-renders the NEXUS-5G control room", async () => {
+test("server-renders the Barcelona geographic operations console", async () => {
   const response = await render();
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /NEXUS/);
-  assert.match(html, /Metro autonomy/);
-  assert.match(html, /INJECT BASE-STATION FAILURE/);
-  assert.match(html, /Service telemetry/);
-  assert.doesNotMatch(html, /starter-preview/);
+  assert.match(html, /Barcelona Geographic Operations Twin/);
+  assert.match(html, /Road-hazard segmentation/);
+  assert.match(html, /OBSERVED MAP/);
+  assert.match(html, /SIMULATED RAN/);
+  assert.match(html, /DERIVED DECISION/);
+  assert.match(html, /Inspect scheduler/);
+  assert.match(html, /OpenStreetMap contributors/);
+  assert.doesNotMatch(html, /Metro autonomy/);
+  assert.doesNotMatch(html, /low-poly/i);
+});
+
+test("ships a bounded, attributed OpenStreetMap extract", async () => {
+  const raw = await readFile(new URL("../public/data/barcelona-eixample.geojson", import.meta.url), "utf8");
+  const extract = JSON.parse(raw);
+  assert.deepEqual(extract.bbox, [2.164, 41.3862, 2.166, 41.3877]);
+  assert.equal(extract.provenance.license, "ODbL 1.0");
+  assert.match(extract.provenance.source, /OpenStreetMap contributors/);
+  assert.equal(extract.features.length, 85);
+  assert.ok(extract.features.some((feature) => feature.properties.kind === "building"));
+  assert.ok(extract.features.some((feature) => feature.properties.name === "Carrer de Balmes"));
+});
+
+test("keeps mobile provenance, export, and replay-speed controls visible and documents the geographic map accurately", async () => {
+  const [styles, readme] = await Promise.all([
+    readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
+    readFile(new URL("../README.md", import.meta.url), "utf8"),
+  ]);
+  assert.doesNotMatch(
+    styles,
+    /\.ops-actions button:first-child,\s*\.ops-actions button:nth-child\(2\)\s*\{\s*display:\s*none/,
+  );
+  assert.match(styles, /\.replay-bar > label \{ display: flex; gap: 4px; \}/);
+  assert.doesNotMatch(readme, /3D scene|WebGL scene/i);
 });

@@ -3,24 +3,26 @@
 [![Live preview](https://img.shields.io/badge/live-preview-2ea44f?logo=github)](https://marinjursic.github.io/edge-intelligence-digital-twin/)
 [![Preview status](https://github.com/MarinJursic/edge-intelligence-digital-twin/actions/workflows/pages.yml/badge.svg)](https://github.com/MarinJursic/edge-intelligence-digital-twin/actions/workflows/pages.yml)
 
-An interactive 5G edge-computing digital twin that makes task-offload decisions, radio events, and failure recovery visible and testable.
+An interactive geographic operations workbench for inspecting edge-AI placement,
+radio incidents, privacy constraints, and deterministic recovery on a real Barcelona
+street plan.
 
-NEXUS—5G models a small autonomous-mobility district: vehicles, a drone, a phone, a camera, a robot, and sensors move or operate inside a 3D city, connect to gNodeB sectors, and generate AI workloads. A transparent multi-objective scheduler places each workload on the device, a nearby MEC node, a regional edge, or the cloud. Injecting a base-station failure immediately changes the radio state, serving cells, queue pressure, task path, and scheduler decision; restoring it emits a separate recovery transition.
+The base geography is a checked-in OpenStreetMap extract for Barcelona's Eixample.
+Every overlay states what it is: **observed** roads and buildings, **scenario-fixture**
+traffic context, **simulated** radio/compute assets, and **derived** placement
+decisions. The distinction is part of the product, not fine print.
 
 ## Continuous app walkthrough
 
-[![Continuous NEXUS-5G application walkthrough showing camera movement, scheduling changes, failure recovery, and both themes](docs/walkthrough/app-walkthrough.gif)](docs/walkthrough/app-walkthrough.mp4)
+[![Continuous NEXUS Edge Operations Twin walkthrough showing the Barcelona map, scheduler, scenario changes, and both themes](docs/walkthrough/app-walkthrough.gif)](docs/walkthrough/app-walkthrough.mp4)
 
 [Watch or download the full-resolution MP4](docs/walkthrough/app-walkthrough.mp4)
 · [Open the walkthrough poster](docs/walkthrough/app-walkthrough-poster.jpg)
 
-This is one uninterrupted capture of the executable Three.js application. It rotates
-the labeled city, changes the scheduler from MEC to cloud execution, applies a
-restricted-data policy that safely falls back to the device, returns to the adaptive
-policy, and injects a `gNB-CENTRAL` failure. The scene, inventory, active execution
-node, task path, recovery bar, latency, loss, jitter, queue depth, SLA, and event
-stream change together. The walkthrough then changes the complete WebGL and dashboard
-theme during recovery and restores the base station to a distinct healthy state.
+The walkthrough is a single continuous pass through the real application. It changes
+between three Barcelona scenarios, rotates and zooms the map, inspects cells and MEC
+sites, opens the scheduler, tests its privacy objective, steps the deterministic
+replay, opens the restricted-camera scenario, and verifies both themes.
 
 The displayed values are deterministic simulator telemetry, not packet-level RF
 measurements. The continuous capture demonstrates the real interaction and rendering
@@ -30,21 +32,22 @@ path without claiming measured 5G performance.
 
 Edge-AI scheduling is a systems problem, not just a model-selection problem. Sending a workload farther away may improve inference accuracy while increasing radio delay, privacy exposure, and cost. Keeping it on-device may protect data while draining battery and missing a latency target. NEXUS—5G makes those trade-offs observable and gives every decision an inspectable score.
 
-The MVP demonstrates:
+The implemented workbench includes:
 
-- a real-time Three.js city/factory-style digital-twin viewport;
-- moving vehicles and robot, a drone, phone, camera, sensors, buildings, three gNodeBs, coverage volumes, beams, two MEC nodes, a regional node, cloud, and animated task paths;
-- independently selectable device, MEC, regional-edge, and cloud offload paths;
-- latency, throughput, packet loss, jitter, queue, energy, accuracy, privacy, SLA, and slice telemetry;
-- all five inspectable objective dimensions: latency, energy, monetary cost, privacy risk, and accuracy loss;
-- a one-click `gNB-CENTRAL` failure, UE handover, deterministic stabilization, adaptive rerouting, and explicit restoration;
-- persistent dark and light interface themes, including separate Three.js scene
-  lighting, fog, ground, road, building, grid, window, and label palettes;
-- a deterministic Python simulator and multi-objective scheduler;
-- one versioned telemetry contract for simulated and future physical sources;
-- WebSocket and request/response APIs with generated OpenAPI documentation.
+- a real, attributed OSM street/building extract rather than a synthetic low-poly city;
+- three place-specific examples: a Gran Via road hazard, a Plaça Universitat vision burst, and a restricted Balmes camera workload;
+- mouse, touch, wheel, keyboard, and explicit button camera controls;
+- selectable UE, gNodeB, and MEC assets with a visible observed/simulated/derived legend;
+- independently selectable device, MEC, regional-edge, and cloud baselines;
+- normalized latency, energy, cost, privacy-risk, and accuracy-loss weights;
+- a one-click `gNB-CENTRAL` outage, handover trace, stabilization progress, task reroute, and explicit restoration;
+- a deterministic replay with play, pause, step, seek, and speed controls;
+- persistent dark and light themes and a downloadable JSON evidence frame;
+- a separate deterministic Python simulator, strict telemetry contract, FastAPI
+  control plane, and WebSocket stream for programmatic experiments.
 
-No SDR, mobile core, traffic simulator, external dataset, API key, or GPU is required for the complete demo.
+No external map service, API key, GPU, SDR, mobile core, or traffic simulator is
+required at runtime. The OSM extract ships with the repository.
 
 ## Quick start
 
@@ -64,36 +67,38 @@ python3 -m venv .venv
 npm run api:dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The UI automatically uses the API at `http://localhost:8000`; if it is unavailable, the browser switches to its deterministic local adapter so the demo remains usable. API docs are at [http://localhost:8000/docs](http://localhost:8000/docs).
-
-To point the web app at another API:
-
-```bash
-NEXT_PUBLIC_EDGE_API_URL=http://your-api.example npm run dev
-```
+Open [http://localhost:3000](http://localhost:3000). The static web product runs its
+deterministic demonstration kernel locally and does not claim to display live radio
+measurements. The optional Python service is an independently testable control plane;
+its OpenAPI docs are available at [http://localhost:8000/docs](http://localhost:8000/docs).
 
 ## Demo walkthrough
 
-1. Drag across the city to rotate the 3D camera.
-2. Use the persistent **LIGHT / DARK** control to change both the dashboard and
-   the 3D city's materials, atmosphere, lighting, and labels.
-3. Watch the white task pulse travel from `AV-07` to the selected execution target.
-4. Switch among adaptive, latency-first, energy-first, privacy-first, and forced device/MEC/cloud baselines. Energy-first selects the regional edge in the default trace.
-5. Change any of the five objective weights. The policy becomes **CUSTOM**, and the API normalizes the non-zero vector.
-6. Change workload privacy to **Sensitive** or **Restricted**. Hard constraints override an unsafe weighted preference; an incompatible forced tier returns a visible policy-blocked state.
-7. Select **Inject base-station failure**.
-8. `gNB-CENTRAL` drops, the inventory changes from `3 / 3` to `2 / 3`, five UEs
-   hand over, its beams turn red, the recovery progress bar starts, and
-   queue/loss/jitter/latency spike while the task path moves to a healthy target.
-9. Select **Restore gNB-CENTRAL** to emit a restoration event and resume normal admission.
+1. Choose one of the three scenarios from the command bar.
+2. Drag the map to change bearing, use the wheel or `+`/`−` to zoom, use arrow
+   keys to change bearing and pitch, or use the visible camera toolbar.
+3. Toggle buildings, scenario traffic, radio, compute, and task-path layers.
+4. Select the active UE, a gNodeB, or a MEC node from either the map or asset rail.
+5. Open **Inspect scheduler** and compare adaptive, latency, energy, privacy, device,
+   MEC, and cloud policies. Change a weight to create a normalized custom policy.
+6. Change privacy to **Restricted** and confirm that remote candidates are visibly
+   blocked while device placement remains feasible.
+7. Select `gNB-CENTRAL`, simulate its outage, inspect the handover and stabilization
+   trace, then restore it.
+8. Pause, step, seek, and change replay speed; export the current evidence frame.
+9. Switch between complete light and dark themes.
 
-The scenario uses seed `42`. Positions, workload arrivals, node health, scores, timestamps, and telemetry are deterministic for a given action sequence, including a failure injected after arbitrary uptime. Browser fallback uses the same target, privacy, outage, and recovery rules, so the demo remains meaningful without the Python service.
+The browser trace is deterministic for a given action sequence. Geographic features
+come from the local OSM extract; UE routes, traffic states, radio values, cells, MEC
+sites, and decisions are scenario data or simulator output.
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-    UI["Next.js + TypeScript<br/>Three.js digital twin"] <-->|"HTTP / WebSocket<br/>TelemetryFrame 1.0"| API["FastAPI control plane"]
+    OSM["Pinned OSM extract<br/>ODbL 1.0"] --> UI["Next.js + TypeScript<br/>geographic operations UI"]
+    FIX["Deterministic scenario fixtures"] --> UI
+    UI --> KERNEL["Browser replay +<br/>placement baseline"]
     API --> SIM["Deterministic scenario<br/>mobility + network state"]
     API --> SCH["Multi-objective scheduler"]
     SCH --> DEC["Device / MEC / regional edge / cloud"]
@@ -104,14 +109,32 @@ flowchart LR
 
 | Layer | Responsibility |
 | --- | --- |
-| `app/ui/TwinScene.tsx` | Three.js scene lifecycle, moving actors, gNodeB beams/coverage, task migration, camera interaction |
-| `app/ui/EdgeTwinDashboard.tsx` | Operator controls, API/fallback adapter selection, metrics, slices, event stream |
+| `public/data/barcelona-eixample.geojson` | Deterministic OSM extract with source URL, bbox, timestamp, and ODbL attribution |
+| `scripts/import_osm_extract.mjs` | Reproducible OSM XML-to-GeoJSON import and geometry simplification |
+| `app/ui/GeoOperationsMap.tsx` | Geographic projection, map layers, route rendering, assets, attribution, and camera controls |
+| `app/ui/EdgeTwinDashboard.tsx` | Scenarios, selection, scheduler sheet, incident workflow, evidence export, and replay |
+| `app/ui/operationsData.ts` | Three explicit scenario fixtures and simulated network-asset locations |
 | `api/edge_twin/contracts.py` | Pydantic telemetry, task, objective, candidate, and scenario contracts |
 | `api/edge_twin/scheduler.py` | Feasibility filters and normalized weighted scoring |
 | `api/edge_twin/simulator.py` | Seeded mobility, node load, failure, recovery, and telemetry generation |
 | `api/edge_twin/adapters.py` | Adapter protocol, validated JSON snapshot adapter, and ns-3/srsRAN seams |
 
 See [Adapter integration guide](docs/ADAPTERS.md) for concrete ns-3, Open5GS, srsRAN, SUMO, and hardware seams.
+
+## Data provenance
+
+| Layer | Classification | Provenance |
+| --- | --- | --- |
+| streets + buildings | observed geography | OpenStreetMap API extract, bbox `2.1640,41.3862,2.1660,41.3877`, extracted `2026-07-26`, ODbL 1.0 |
+| traffic state + route | scenario fixture | hand-authored deterministic examples aligned to named Eixample streets; not measured or current traffic |
+| gNodeBs + MEC + UEs | simulated | fixed local scenario assets; not operator topology |
+| RSRP/RSRQ/SINR + service KPIs | simulated | deterministic analytical telemetry; not RF measurements |
+| placement + task path | derived | interpretable weighted baseline after feasibility constraints |
+
+The web app never fetches third-party tiles. `scripts/import_osm_extract.mjs` turns a
+bounded OSM XML response into the compact local GeoJSON file and embeds its endpoint,
+bbox, extraction time, license, and attribution. The attribution remains visible
+inside the map in every theme.
 
 ## Scheduler
 
@@ -137,7 +160,7 @@ Every adapter produces the same `TelemetryFrame 1.0`:
 ```json
 {
   "schema_version": "1.0",
-  "scenario_id": "metro-autonomy-01",
+  "scenario_id": "gran-via-hazard",
   "tick": 4,
   "seed": 42,
   "generated_at": "2026-07-25T14:32:03.600000Z",
@@ -233,7 +256,7 @@ cd api && ../.venv/bin/pytest
 npm run test:all
 ```
 
-The automated suite checks byte-for-byte reset determinism (including generated timestamps), every device and execution tier, complete telemetry dimensions, late-injected failure behavior, UE reassignment, stabilization and restoration, weighted and forced policies, strict privacy, task-size sensitivity, requesting-device identity, candidate explanations, malformed and unknown HTTP requests, zero/invalid weights, 404s, isolated WebSocket streams and close codes, hardware snapshot validation, custom-weight browser-fallback scheduling, operator controls, persistent theme selection, light-theme propagation into the 3D scene, outage inventory, accessible recovery progress, and server-rendered product content.
+The automated suite checks byte-for-byte reset determinism (including generated timestamps), every device and execution tier, complete telemetry dimensions, late-injected failure behavior, UE reassignment, stabilization and restoration, weighted and forced policies, strict privacy, task-size sensitivity, requesting-device identity, candidate explanations, malformed and unknown HTTP requests, zero/invalid weights, 404s, isolated WebSocket streams and close codes, hardware snapshot validation, custom-weight browser-fallback scheduling, operator controls, persistent theme selection, light-theme propagation into the geographic map, outage inventory, accessible recovery progress, and server-rendered product content.
 
 ## Research framing
 
@@ -266,13 +289,16 @@ Run every policy on identical seeded traces and report confidence intervals. Sep
 - ETSI's current MEC framework separates MEC applications, platform services,
   host-level management, and system-level orchestration; NEXUS—5G keeps its
   laptop-scale MEC nodes and scheduler visibly distinct for the same reason:
-  [ETSI GS MEC 003 V3.2.1](https://www.etsi.org/deliver/etsi_gs/mec/001_099/003/03.02.01_60/gs_mec003v030201p.pdf).
+  [ETSI GS MEC 003 V4.1.1](https://www.etsi.org/deliver/etsi_gs/mec/001_099/003/04.01.01_60/gs_mec003v040101p.pdf).
 - 3GPP's 5G system overview identifies edge computing and slicing as distinct
   architectural capabilities. The three dashboard slices are therefore
   workload/SLA views, not separate radio towers or a claim of complete PLMNs:
   [3GPP 5G System Overview](https://www.3gpp.org/technologies/5g-system-overview).
 - 3GPP identifies Release 18 as the first release of **5G-Advanced**: [3GPP Highlights, Release 18](https://www.3gpp.org/ftp/Information/Highlights/2022_Issue05/3GPP_Highlights_Issue_5_WEB.pdf).
-- 5G-LENA is the ns-3 NR module and documents its PHY/MAC models, examples, validation, and limitations: [5G-LENA NR module manual](https://cttc-lena.gitlab.io/nr/manual/nr-module.html).
+- 5G-LENA is the ns-3 NR module. NR-v5.0 is paired with ns-3.48; its
+  release notes also warn FDD users to apply ns-3 MR 2929 for an NLOS
+  spectrum-model issue that can understate received power:
+  [5G-LENA v5.0 release notes](https://cttc-lena.gitlab.io/nr/html/md__2builds_2cttc-lena_2nr_2_r_e_l_e_a_s_e___n_o_t_e_s.html).
 - Open5GS implements a 5G Core/EPC and documents SA/NSA network functions and deployment: [Open5GS documentation](https://open5gs.org/open5gs/docs/).
 - srsRAN provides a portable open-source 5G CU/DU stack; its metrics can be emitted as JSON over WebSocket: [srsRAN Project documentation](https://docs.srsran.com/projects/project/en/latest/) and [output documentation](https://docs.srsran.com/projects/project/en/latest/user_manuals/source/outputs.html).
 - SUMO is a microscopic traffic simulator; TraCI provides TCP client/server control and online access to simulation objects: [Eclipse SUMO](https://eclipse.dev/sumo/) and [TraCI documentation](https://eclipse.dev/sumo/docs/TraCI/index.html).
@@ -282,10 +308,9 @@ Run every policy on identical seeded traces and report confidence intervals. Sep
   a production OpenTelemetry exporter should map measured counters explicitly
   instead of renaming the demo's analytical percentages:
   [OpenTelemetry system metric semantic conventions](https://opentelemetry.io/docs/specs/semconv/system/system-metrics/).
-- Three.js renders in Linear-sRGB and converts display output to sRGB. Both
-  themes use `SRGBColorSpace` output and ACES filmic tone mapping rather than
-  treating light mode as a CSS inversion:
-  [Three.js color-management guide](https://threejs.org/manual/en/color-management.html).
+- OpenStreetMap requires visible attribution and identification of the ODbL;
+  the map carries both and the extract retains its provenance:
+  [OpenStreetMap copyright and license](https://www.openstreetmap.org/copyright).
 
 These tools are integration targets, not bundled dependencies. Keeping them behind adapters preserves the laptop-friendly demo and prevents simulator-specific types from leaking into the scheduler or UI.
 
@@ -300,20 +325,22 @@ These tools are integration targets, not bundled dependencies. Keeping them behi
   demonstrates product flow and state transitions, not measured 5G performance.
 - Authentication, durable telemetry storage, multi-tenant isolation, admission control, and rate limiting are out of scope.
 - The WebSocket endpoint streams an isolated no-failure baseline; bidirectional stream control is intentionally not implemented, while controlled experiments use the typed HTTP step endpoint.
-- Browser rendering performance depends on the device GPU; the scene favors clarity and portability over geographic detail.
+- The map uses a compact vector extract and a lightweight SVG projection; it is
+  not a full GIS engine and intentionally omits turn-by-turn routing and terrain.
 - Open5GS, srsRAN, ns-3/5G-LENA, and SUMO are documented adapter seams and are not installed automatically.
 
 ## Repository layout
 
 ```text
 .
-├── app/                  Next.js UI and Three.js digital twin
+├── app/                  Next.js geographic operations UI
 ├── api/
 │   ├── edge_twin/        contracts, adapters, scheduler, simulator, FastAPI
 │   └── tests/            API and scheduling tests
 ├── docs/                 integration notes and continuous app walkthrough media
-├── scripts/              reproducible development utilities
-├── tests/                server-rendered frontend smoke test
+├── public/data/          attributed local OSM GeoJSON extract
+├── scripts/              OSM importer and reproducible utilities
+├── tests/                interaction, theme, domain, and SSR tests
 └── README.md
 ```
 
