@@ -2,6 +2,10 @@
 
 [![Live preview](https://img.shields.io/badge/live-preview-2ea44f?logo=github)](https://marinjursic.github.io/EdgeTwin/)
 [![Preview status](https://github.com/MarinJursic/EdgeTwin/actions/workflows/pages.yml/badge.svg)](https://github.com/MarinJursic/EdgeTwin/actions/workflows/pages.yml)
+[![Next.js](https://img.shields.io/badge/Next.js-16-111714?logo=nextdotjs)](https://nextjs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Tests](https://img.shields.io/badge/tests-44%20passing-176BCA)](#verification)
 
 An explainable 5G edge-placement workbench that follows a Barcelona camera frame
 from capture, through its serving cell, to the compute destination that runs it.
@@ -22,8 +26,10 @@ decisions independently.
 
 The walkthrough is a single continuous pass through the real application. It starts
 with the three-step capture → connect → process story, opens the attributed route
-map, compares every compute destination, simulates a serving-cell outage, follows
-the reroute and recovery, and verifies both themes.
+map, selects the serving cell, compares every compute destination under a
+privacy-weighted placement policy, returns to the real street context, changes to
+the Plaça dense-vision example, reopens the decision explanation, and verifies
+both themes.
 
 The displayed values are deterministic simulator telemetry, not packet-level RF
 measurements. The continuous capture demonstrates the real interaction and rendering
