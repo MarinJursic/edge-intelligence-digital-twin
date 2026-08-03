@@ -204,9 +204,9 @@ export function EdgeTwinDashboard() {
   return (
     <main className="ops-shell">
       <header className="ops-command">
-        <a className="ops-brand" href="#operations-map" aria-label="EdgeTwin network operations">
+        <a className="ops-brand" href="#operations-map" aria-label="Edge Orchestration network operations">
           <span aria-hidden="true">E</span>
-          <strong>EdgeTwin</strong>
+          <strong>Edge Orchestration</strong>
           <small>SEE WHERE AI WORK RUNS</small>
         </a>
         <label className="scenario-select">

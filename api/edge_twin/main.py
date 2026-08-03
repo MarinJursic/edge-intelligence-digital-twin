@@ -19,7 +19,7 @@ from .scheduler import schedule
 from .simulator import SCENARIO, TwinSimulator
 
 app = FastAPI(
-    title="NEXUS-5G Edge Twin API",
+    title="Edge Orchestration API",
     version="0.1.0",
     description="Deterministic telemetry and transparent multi-objective scheduling.",
 )

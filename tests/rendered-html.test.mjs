@@ -15,7 +15,7 @@ test("server-renders the explainable Barcelona edge-placement workbench", async 
   const response = await render();
   assert.equal(response.status, 200);
   const html = await response.text();
-  assert.match(html, /EdgeTwin/);
+  assert.match(html, /Edge Orchestration/);
   assert.match(html, /Camera frame → 5G cell → compute destination/);
   assert.match(html, /Road-hazard segmentation/);
   assert.match(html, /REAL BARCELONA CONTEXT/);

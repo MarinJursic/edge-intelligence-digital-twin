@@ -1,7 +1,7 @@
-# EdgeTwin
+# Edge Orchestration
 
-[![Live preview](https://img.shields.io/badge/live-preview-2ea44f?logo=github)](https://marinjursic.github.io/EdgeTwin/)
-[![Preview status](https://github.com/MarinJursic/EdgeTwin/actions/workflows/pages.yml/badge.svg)](https://github.com/MarinJursic/EdgeTwin/actions/workflows/pages.yml)
+[![Live preview](https://img.shields.io/badge/live-preview-2ea44f?logo=github)](https://marinjursic.github.io/EdgeOrchestration/)
+[![Preview status](https://github.com/MarinJursic/EdgeOrchestration/actions/workflows/pages.yml/badge.svg)](https://github.com/MarinJursic/EdgeOrchestration/actions/workflows/pages.yml)
 [![Next.js](https://img.shields.io/badge/Next.js-16-111714?logo=nextdotjs)](https://nextjs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Python](https://img.shields.io/badge/Python-3.11+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
@@ -19,7 +19,7 @@ decisions independently.
 
 ## Continuous app walkthrough
 
-[![Continuous EdgeTwin walkthrough following a camera frame through its 5G cell to a compute destination](docs/walkthrough/app-walkthrough.gif)](docs/walkthrough/app-walkthrough.mp4)
+[![Continuous Edge Orchestration walkthrough following a camera frame through its 5G cell to a compute destination](docs/walkthrough/app-walkthrough.gif)](docs/walkthrough/app-walkthrough.mp4)
 
 [Watch or download the full-resolution MP4](docs/walkthrough/app-walkthrough.mp4)
 · [Open the walkthrough poster](docs/walkthrough/app-walkthrough-poster.jpg)
@@ -37,7 +37,7 @@ path without claiming measured 5G performance.
 
 ## Why this project exists
 
-Edge-AI scheduling is a systems problem, not just a model-selection problem. Sending a workload farther away may improve inference accuracy while increasing radio delay, privacy exposure, and cost. Keeping it on-device may protect data while draining battery and missing a latency target. EdgeTwin makes those trade-offs observable and gives every decision an inspectable score.
+Edge-AI scheduling is a systems problem, not just a model-selection problem. Sending a workload farther away may improve inference accuracy while increasing radio delay, privacy exposure, and cost. Keeping it on-device may protect data while draining battery and missing a latency target. Edge Orchestration makes those trade-offs observable and gives every decision an inspectable score.
 
 The implemented workbench includes:
 
@@ -332,7 +332,7 @@ Run every policy on identical seeded traces and report confidence intervals. Sep
 ## Standards and primary sources
 
 - ETSI's current MEC framework separates MEC applications, platform services,
-  host-level management, and system-level orchestration; EdgeTwin keeps its
+  host-level management, and system-level orchestration; Edge Orchestration keeps its
   laptop-scale MEC nodes and scheduler visibly distinct for the same reason:
   [ETSI GS MEC 003 V4.1.1](https://www.etsi.org/deliver/etsi_gs/mec/001_099/003/04.01.01_60/gs_mec003v040101p.pdf).
 - 3GPP's edge-computing overview separates the application, edge-enabler, hosting,
@@ -341,7 +341,7 @@ Run every policy on identical seeded traces and report confidence intervals. Sep
   network transport as related but different evidence:
   [3GPP Edge Computing](https://www.3gpp.org/technologies/edge-computing).
 - O-RAN WG3 defines the Near-RT RIC as a fine-grained data-collection and action
-  loop over E2. EdgeTwin does not claim to implement a RIC or E2 interface; those remain
+  loop over E2. Edge Orchestration does not claim to implement a RIC or E2 interface; those remain
   adapter targets:
   [O-RAN technical groups](https://www.o-ran.org/technical-groups).
 - 3GPP's 5G system overview identifies edge computing and slicing as distinct
